@@ -107,6 +107,7 @@ function drawDecorations() {
     if (x + sign.w < -24 || x > WIDTH + 24) {
       return;
     }
+    const hasCopy = Array.isArray(sign.lines) && sign.lines.length > 0;
     const innerInset = 5;
     const imageInset = 7;
     const postY = sign.y + sign.h - 4;
@@ -131,44 +132,86 @@ function drawDecorations() {
     roundRect(x + innerInset, sign.y + innerInset, sign.w - innerInset * 2, sign.h - innerInset * 2, 15);
     ctx.stroke();
 
-    ctx.save();
-    roundRect(x + imageInset, sign.y + imageInset, sign.w - imageInset * 2, sign.h - imageInset * 2, 13);
-    ctx.clip();
-    // Rotate/alternate billboard visuals to avoid repeating the same image.
-    const billboardImages = [art.pose, art.face, art.player, art.product, art.enemyRedBull, art.enemyMonster];
-    const pick = Math.abs(Math.floor((sign.x || 0) / 120) + Math.floor((sign.y || 0) / 40)) % billboardImages.length;
-    const img = billboardImages[pick];
-    const ok = drawCoverImage(
-      img,
-      x + imageInset,
-      sign.y + imageInset,
-      sign.w - imageInset * 2,
-      sign.h - imageInset * 2,
-      pick % 3 === 0 ? -Math.PI / 2 : 0,
-      1.12,
-      0.03,
-      -0.02
-    );
-    if (!ok && canDrawImage(art.billboardRef)) {
-      drawCoverImage(
-        art.billboardRef,
+    if (hasCopy) {
+      const contentX = x + imageInset;
+      const contentY = sign.y + imageInset;
+      const contentW = sign.w - imageInset * 2;
+      const contentH = sign.h - imageInset * 2;
+      const stripe = ctx.createLinearGradient(contentX, contentY, contentX + contentW, contentY);
+      stripe.addColorStop(0, palette.stripeBlue);
+      stripe.addColorStop(0.52, palette.stripeRed);
+      stripe.addColorStop(1, palette.stripeOrange);
+      ctx.fillStyle = "#fffdf6";
+      roundRect(contentX, contentY, contentW, contentH, 13);
+      ctx.fill();
+      ctx.fillStyle = stripe;
+      roundRect(contentX, contentY, contentW, 14, 10);
+      ctx.fill();
+
+      if (canDrawImage(art.product)) {
+        const canH = Math.min(82, contentH - 28);
+        const canW = canH * (art.product.naturalWidth / art.product.naturalHeight);
+        ctx.save();
+        ctx.shadowColor = "rgba(255, 184, 66, 0.28)";
+        ctx.shadowBlur = 10;
+        ctx.drawImage(art.product, contentX + 14, contentY + 24, canW, canH);
+        ctx.restore();
+      }
+
+      const textX = contentX + 78;
+      const textMaxW = contentX + contentW - textX - 10;
+      ctx.fillStyle = "#1946b8";
+      ctx.font = "bold 11px Avenir Next, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(sign.tag || "康貝特200P", textX, contentY + 32, textMaxW);
+      ctx.fillStyle = "#16203d";
+      ctx.font = "bold 17px Avenir Next, sans-serif";
+      ctx.fillText(sign.caption, textX, contentY + 54, textMaxW);
+      ctx.fillStyle = "#526182";
+      ctx.font = "bold 12px Avenir Next, sans-serif";
+      sign.lines.slice(0, 2).forEach((line, index) => {
+        ctx.fillText(line, textX, contentY + 76 + index * 18, textMaxW);
+      });
+    } else {
+      ctx.save();
+      roundRect(x + imageInset, sign.y + imageInset, sign.w - imageInset * 2, sign.h - imageInset * 2, 13);
+      ctx.clip();
+      // Rotate/alternate billboard visuals to avoid repeating the same image.
+      const billboardImages = [art.pose, art.face, art.player, art.product, art.enemyRedBull, art.enemyMonster];
+      const pick = Math.abs(Math.floor((sign.x || 0) / 120) + Math.floor((sign.y || 0) / 40)) % billboardImages.length;
+      const img = billboardImages[pick];
+      const ok = drawCoverImage(
+        img,
         x + imageInset,
         sign.y + imageInset,
         sign.w - imageInset * 2,
         sign.h - imageInset * 2,
-        0,
-        1.04
+        pick % 3 === 0 ? -Math.PI / 2 : 0,
+        1.12,
+        0.03,
+        -0.02
       );
-    }
-    ctx.restore();
+      if (!ok && canDrawImage(art.billboardRef)) {
+        drawCoverImage(
+          art.billboardRef,
+          x + imageInset,
+          sign.y + imageInset,
+          sign.w - imageInset * 2,
+          sign.h - imageInset * 2,
+          0,
+          1.04
+        );
+      }
+      ctx.restore();
 
-    ctx.fillStyle = "rgba(29, 41, 74, 0.78)";
-    roundRect(x + 36, sign.y + sign.h - 54, sign.w - 72, 28, 14);
-    ctx.fill();
-    ctx.fillStyle = "#fff7e8";
-    ctx.font = "bold 12px Avenir Next, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(sign.caption, x + sign.w / 2, sign.y + sign.h - 35);
+      ctx.fillStyle = "rgba(29, 41, 74, 0.78)";
+      roundRect(x + 36, sign.y + sign.h - 54, sign.w - 72, 28, 14);
+      ctx.fill();
+      ctx.fillStyle = "#fff7e8";
+      ctx.font = "bold 12px Avenir Next, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(sign.caption, x + sign.w / 2, sign.y + sign.h - 35);
+    }
   });
 }
 
@@ -434,7 +477,7 @@ function drawEnemies() {
         const baseLabel = enemy.phase === "idle" ? "待機中" :
           enemy.phase === "transform" ? "魔爪降臨中" :
           enemy.phase === "stunned" ? "破綻！踩它" :
-          enemy.phase === "shaken" ? "聯盟暴走" :
+          enemy.phase === "shaken" ? "霸主暴走" :
           enemy.phase === "charge" || enemy.phase === "chargeWindup" ? "衝刺中" :
           enemy.phase === "shootWindup" ? "蓄力射擊" :
           enemy.phase === "summonWindup" ? "召喚封鎖兵" :
@@ -1116,12 +1159,38 @@ function drawStageTwoScene() {
     return;
   }
 
-  drawBackground();
+  // If Stage 2 is being used as the *first* phase, keep the original neutral sky.
+  // This avoids the tower-top backdrop feeling like it “leaks” into stage 1.
+  if (SLINGSHOT_FIRST_ORDER) {
+    drawBackground();
+  } else {
+    // Stage 2 is set on the tower top: use a bespoke backdrop.
+    drawStageTwoTowerBackdrop(stageTwo);
+  }
 
   const shakeX = STAGE_TWO_FX.cameraShakeX;
   const shakeY = STAGE_TWO_FX.cameraShakeY;
   ctx.save();
   ctx.translate(shakeX, shakeY);
+
+  // Cinematic camera for the explosion slow-motion close-up.
+  if (game.state === "stage2Outro" && game.stageTwoOutro) {
+    const t = game.stageTwoOutro.timer || 0;
+    // Start close-up immediately, then slowly relax.
+    const focusIn = easeOutCubic(clamp(t / 18, 0, 1));
+    const focusOut = clamp((480 - t) / 170, 0, 1);
+    const focus = focusIn * clamp(focusOut, 0, 1);
+    const cx = game.stageTwoOutro.impactX ?? WIDTH / 2;
+    const cy = game.stageTwoOutro.impactY ?? HEIGHT / 2;
+    const zoom = 1 + 0.75 * focus;
+    // Tight, deliberate micro-movement for a “slowmo close-up” feel.
+    const driftX = Math.sin((game.elapsed || 0) * 0.045) * 3.5 * focus;
+    const driftY = Math.cos((game.elapsed || 0) * 0.04) * 2.8 * focus;
+    ctx.translate(WIDTH / 2, HEIGHT / 2);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-(cx + driftX), -(cy + driftY));
+    ctx.translate(0, 0);
+  }
 
   ctx.fillStyle = "#1a2a57";
   ctx.fillRect(0, stageTwo.groundY, WIDTH, HEIGHT - stageTwo.groundY);
@@ -1152,6 +1221,597 @@ function drawStageTwoScene() {
   ctx.restore();
 
   drawStageTwoPowerMeter(stageTwo);
+}
+
+function drawStageTwoOutroOverlay() {
+  const stageTwo = game.stageTwo;
+  const outro = game.stageTwoOutro;
+  if (!stageTwo || !outro) return;
+
+  const t = outro.timer || 0;
+  const p = t / STAGE_TWO_OUTRO_TOTAL_FRAMES;
+  const groundY = stageTwo?.groundY ?? 430;
+
+  // ===== BEAT 1: Slow-motion collapse + smoke (t: 0-160) =====
+  if (t < 180) {
+    const slowmo = clamp(1 - t / 120, 0, 1);
+    const smokeIn = clamp((t - 40) / 120, 0, 1);
+    const smokeMax = 0.62 * smokeIn;
+
+    const focusIn = easeOutCubic(clamp((t - 6) / 26, 0, 1));
+    const focus = focusIn * clamp((180 - t) / 60, 0, 1);
+    if (focus > 0.001) {
+      const cx = outro.impactX ?? WIDTH / 2;
+      const cy = outro.impactY ?? HEIGHT / 2;
+      ctx.save();
+      ctx.globalAlpha = 0.9 * focus;
+      const vignette = ctx.createRadialGradient(cx, cy, 60, cx, cy, 780);
+      vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+      vignette.addColorStop(0.35, "rgba(0, 0, 0, 0.18)");
+      vignette.addColorStop(1, "rgba(0, 0, 0, 0.62)");
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = 0.8 * focus;
+      const spot = ctx.createRadialGradient(cx, cy, 0, cx, cy, 220);
+      spot.addColorStop(0, "rgba(255, 240, 196, 0.72)");
+      spot.addColorStop(0.5, "rgba(255, 168, 96, 0.22)");
+      spot.addColorStop(1, "rgba(255, 168, 96, 0)");
+      ctx.fillStyle = spot;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 220, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    const pulse1 = clamp(1 - Math.abs(t - 10) / 10, 0, 1);
+    const pulse2 = clamp(1 - Math.abs(t - 28) / 12, 0, 1);
+    const pulse3 = clamp(1 - Math.abs(t - 46) / 14, 0, 1);
+    const pulse = Math.max(pulse1 * 0.55, pulse2 * 0.42, pulse3 * 0.32);
+    if (pulse > 0.001) {
+      ctx.save();
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = "rgba(255, 252, 245, 1)";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.globalAlpha = 0.18 + slowmo * 0.18;
+    ctx.fillStyle = "rgba(255, 255, 255, 1)";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.restore();
+
+    // Smoke.
+    ctx.save();
+    const smokeGrad = ctx.createLinearGradient(0, groundY - 160, 0, HEIGHT);
+    smokeGrad.addColorStop(0, `rgba(22, 28, 48, ${0.0})`);
+    smokeGrad.addColorStop(0.35, `rgba(22, 28, 48, ${0.25 * smokeMax})`);
+    smokeGrad.addColorStop(1, `rgba(22, 28, 48, ${smokeMax})`);
+    ctx.fillStyle = smokeGrad;
+    ctx.fillRect(0, groundY - 180, WIDTH, HEIGHT - (groundY - 180));
+
+    for (let i = 0; i < 18; i += 1) {
+      const seed = (i * 97 + Math.floor(t * 2)) % 997;
+      const sx = ((seed * 37) % 980) - 10;
+      const sy = groundY - 90 - (((seed * 53) % 160) + (t * (0.35 + (i % 3) * 0.08)));
+      const sr = 18 + ((seed * 17) % 22);
+      const sa = (0.08 + (i % 4) * 0.03) * smokeIn;
+      ctx.globalAlpha = sa;
+      ctx.fillStyle = "rgba(210, 218, 230, 1)";
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Rubble debris overlay building up toward end.
+    const rubbleBuild = clamp((t - 100) / 80, 0, 1);
+    if (rubbleBuild > 0.001) {
+      ctx.save();
+      ctx.globalAlpha = rubbleBuild * 0.55;
+      ctx.fillStyle = "rgba(10, 14, 28, 1)";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      // Jagged debris pile silhouette at bottom.
+      for (let i = 0; i < 40; i += 1) {
+        const rx = ((i * 53 + t * 3) % 1000) - 20;
+        const ry = groundY - 10 - ((i * 27 + t * 2) % 60) * rubbleBuild;
+        const rw = 8 + ((i * 19) % 20);
+        const rh = 4 + ((i * 31) % 14);
+        ctx.fillStyle = `rgba(18, 24, 42, ${0.4 + rubbleBuild * 0.4})`;
+        roundRect(rx, ry, rw, rh, 3);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  // ===== RUBBLE BLACKOUT (t: 160-220) full-screen dark cover =====
+  const rubbleCover = clamp((t - 150) / 40, 0, 1) * clamp((240 - t) / 60, 0, 1);
+  if (rubbleCover > 0.001) {
+    ctx.save();
+    ctx.globalAlpha = 0.85 + rubbleCover * 0.15;
+    ctx.fillStyle = "rgba(6, 8, 18, 1)";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    // Debris chunks scattered across the full screen.
+    for (let i = 0; i < 50; i += 1) {
+      const rx = ((i * 67 + t * 4) % 1000) - 20;
+      const ry = ((i * 43 + t * 3) % 600) - 40;
+      const rw = 6 + ((i * 29) % 24);
+      const rh = 3 + ((i * 37) % 18);
+      ctx.fillStyle = `rgba(12, 18, 35, ${0.3 + ((i * 17) % 10) * 0.06})`;
+      roundRect(rx, ry, rw, rh, 3);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ===== CLEAN SCENE CUT: Tower scene with rubble pile (t: 200+) =====
+  if (t >= 200) {
+    // Hard cut: full night tower backdrop.
+    ctx.save();
+
+    const sky = ctx.createLinearGradient(0, -120, 0, 620);
+    sky.addColorStop(0, "rgba(18, 28, 72, 1)");
+    sky.addColorStop(0.48, "rgba(12, 18, 35, 1)");
+    sky.addColorStop(1, "rgba(6, 10, 22, 1)");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, -120, WIDTH, HEIGHT + 240);
+
+    // Stars.
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = "rgba(255, 252, 245, 1)";
+    for (let i = 0; i < 70; i += 1) {
+      const sx = (i * 73) % 980;
+      const sy = ((i * 131) % 420) - 40;
+      const sr = 0.9 + ((i * 17) % 10) * 0.06;
+      ctx.globalAlpha = 0.12 + (((i * 29) % 10) / 10) * 0.22;
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Ground haze.
+    const hazeGrad = ctx.createLinearGradient(0, 360, 0, 610);
+    hazeGrad.addColorStop(0, "rgba(255, 216, 102, 0)");
+    hazeGrad.addColorStop(0.35, "rgba(255, 216, 102, 0.08)");
+    hazeGrad.addColorStop(1, "rgba(12, 18, 35, 0.72)");
+    ctx.fillStyle = hazeGrad;
+    ctx.fillRect(0, 340, WIDTH, 280);
+    ctx.restore();
+
+    // ===== TOWER =====
+    const towerX = 654;
+    const towerY = -40;
+    const towerW = 182;
+    const towerH = 440;
+    const towerRight = towerX + towerW;
+    const towerGlow = clamp((t - 280) / 100, 0, 1);
+
+    // Tower platform.
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "rgba(6, 10, 22, 0.95)";
+    roundRect(towerX - 64, towerY + towerH - 44, towerW + 128, 64, 22);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255, 216, 102, 0.12)";
+    roundRect(towerX - 58, towerY + towerH - 40, towerW + 116, 8, 8);
+    ctx.fill();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = "rgba(255, 252, 245, 0.55)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 10; i += 1) {
+      const rx = towerX - 44 + i * 30;
+      ctx.beginPath();
+      ctx.moveTo(rx, towerY + towerH - 32);
+      ctx.lineTo(rx, towerY + towerH - 8);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Tower crown.
+    const crownY = towerY - 26;
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    const crownGrad = ctx.createLinearGradient(towerX, crownY, towerRight, crownY);
+    crownGrad.addColorStop(0, "rgba(36, 72, 170, 0.85)");
+    crownGrad.addColorStop(0.55, "rgba(10, 16, 40, 0.92)");
+    crownGrad.addColorStop(1, "rgba(6, 10, 22, 0.96)");
+    ctx.fillStyle = crownGrad;
+    roundRect(towerX + 18, crownY, towerW - 36, 34, 14);
+    ctx.fill();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = `rgba(255, 216, 102, ${0.10 + towerGlow * 0.18})`;
+    ctx.lineWidth = 3;
+    roundRect(towerX + 18, crownY, towerW - 36, 34, 14);
+    ctx.stroke();
+    const spx = towerX + towerW / 2;
+    ctx.globalAlpha = 0.8;
+    ctx.strokeStyle = "rgba(255, 252, 245, 0.22)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(spx, crownY);
+    ctx.lineTo(spx, crownY - 38);
+    ctx.stroke();
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = `rgba(255, 216, 102, ${0.18 + towerGlow * 0.18})`;
+    ctx.beginPath();
+    ctx.arc(spx, crownY - 42, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Tower body.
+    const bodyGrad = ctx.createLinearGradient(towerX, towerY, towerX + towerW, towerY);
+    bodyGrad.addColorStop(0, "rgba(36, 72, 170, 0.92)");
+    bodyGrad.addColorStop(0.22, "rgba(18, 38, 92, 0.92)");
+    bodyGrad.addColorStop(0.55, "rgba(10, 16, 40, 0.94)");
+    bodyGrad.addColorStop(1, "rgba(6, 10, 22, 0.96)");
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(towerX + 10, towerY + 6);
+    ctx.lineTo(towerRight - 10, towerY + 6);
+    ctx.lineTo(towerRight, towerY + towerH - 10);
+    ctx.lineTo(towerX, towerY + towerH - 10);
+    ctx.closePath();
+    ctx.clip();
+    ctx.fillStyle = bodyGrad;
+    roundRect(towerX, towerY, towerW, towerH, 26);
+    ctx.fill();
+    ctx.restore();
+
+    // Edge highlights.
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = 3;
+    const leftRim = ctx.createLinearGradient(towerX, towerY, towerX + 26, towerY);
+    leftRim.addColorStop(0, "rgba(180, 220, 255, 0.42)");
+    leftRim.addColorStop(1, "rgba(180, 220, 255, 0)");
+    ctx.strokeStyle = leftRim;
+    ctx.beginPath();
+    ctx.moveTo(towerX + 10, towerY + 18);
+    ctx.lineTo(towerX + 10, towerY + towerH - 18);
+    ctx.stroke();
+    const rightRim = ctx.createLinearGradient(towerRight - 26, towerY, towerRight, towerY);
+    rightRim.addColorStop(0, "rgba(255, 216, 102, 0)");
+    rightRim.addColorStop(1, `rgba(255, 216, 102, ${0.22 + towerGlow * 0.25})`);
+    ctx.strokeStyle = rightRim;
+    ctx.beginPath();
+    ctx.moveTo(towerRight - 10, towerY + 26);
+    ctx.lineTo(towerRight - 10, towerY + towerH - 26);
+    ctx.stroke();
+    ctx.restore();
+
+    // Windows.
+    ctx.save();
+    const winFlicker = 0.75 + 0.25 * Math.sin(p * 12);
+    ctx.globalAlpha = 0.62 * winFlicker;
+    for (let r = 0; r < 9; r += 1) {
+      for (let c = 0; c < 3; c += 1) {
+        const seed = r * 17 + c * 41;
+        const on = (seed % 5) !== 0;
+        if (!on) continue;
+        const wx = towerX + 38 + c * 38;
+        const wy = towerY + 160 + r * 26;
+        const wa = 0.10 + ((seed % 7) / 7) * 0.18 + towerGlow * 0.18;
+        ctx.fillStyle = `rgba(255, 216, 102, ${wa})`;
+        roundRect(wx, wy, 16, 8, 3);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // ===== BEAT 3: Hero at tower base, looking up (= t: 240-440) =====
+    const baseStart = 260;
+    const baseDur = 140;
+    const baseHold = clamp((t - baseStart) / baseDur, 0, 1) * clamp((440 - t) / 120, 0, 1);
+    if (baseHold > 0.001) {
+      const hx = towerX - 112;
+      const hy = towerY + towerH - 36 + Math.sin(p * 8) * 2;
+      const hr = 18;
+
+      ctx.save();
+      ctx.globalAlpha = 0.45 + baseHold * 0.55;
+      ctx.shadowColor = "rgba(0,0,0,0.25)";
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 4;
+      ctx.beginPath();
+      ctx.arc(hx, hy, hr + 2, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = 0.55 + baseHold * 0.45;
+      ctx.beginPath();
+      ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+      ctx.clip();
+      if (!drawCoverImage(art.face, hx - hr, hy - hr, hr * 2, hr * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
+        ctx.fillStyle = "#f4cfaa";
+        ctx.fillRect(hx - hr, hy - hr, hr * 2, hr * 2);
+      }
+      ctx.restore();
+
+      // Caption bubble.
+      ctx.save();
+      ctx.globalAlpha = 0.55 * baseHold;
+      ctx.fillStyle = "rgba(12, 18, 35, 0.72)";
+      roundRect(hx - 92, hy - 58, 184, 36, 14);
+      ctx.fill();
+      ctx.fillStyle = "#fff7e8";
+      ctx.font = "bold 14px Avenir Next, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("（仰望能量巨塔…）", hx, hy - 40);
+      ctx.textBaseline = "alphabetic";
+      ctx.restore();
+    }
+
+    // ===== CAGE WITH GLOWING CAN =====
+    const cageX = towerX + 46;
+    const cageY = towerY + 92;
+    const cageW = 90;
+    const cageH = 156;
+    const cageCX = cageX + cageW / 2;
+    const cageCY = cageY + cageH / 2;
+    const domeReveal = clamp((t - 300) / 60, 0, 1);
+
+    if (domeReveal > 0.001) {
+      // Cage glow.
+      ctx.save();
+      const cageGlow = ctx.createRadialGradient(cageCX, cageCY, 10, cageCX, cageCY, 140);
+      cageGlow.addColorStop(0, `rgba(255, 216, 102, ${0.18 + towerGlow * 0.22})`);
+      cageGlow.addColorStop(0.55, `rgba(255, 216, 102, ${0.05 + towerGlow * 0.10})`);
+      cageGlow.addColorStop(1, "rgba(255, 216, 102, 0)");
+      ctx.fillStyle = cageGlow;
+      ctx.beginPath();
+      ctx.arc(cageCX, cageCY, 130, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Product can inside cage.
+      const canX = towerX + towerW / 2;
+      const canY = towerY + 170;
+      ctx.save();
+      ctx.globalAlpha = 0.35 + towerGlow * 0.25;
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath();
+      ctx.ellipse(canX + 2, canY + 44, 36, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      drawTransitionCan(art.product, canX, canY, 104, Math.sin(p * 8) * 0.04, "#f7fbff");
+
+      // Cage bars.
+      const barCount = 5;
+      for (let i = 0; i < barCount; i += 1) {
+        const bx = cageX + 14 + i * 15;
+        const by1 = cageY + 10;
+        const by2 = cageY + cageH - 10;
+        ctx.save();
+        ctx.globalAlpha = 0.55 + towerGlow * 0.20;
+        const metal = ctx.createLinearGradient(bx - 3, 0, bx + 3, 0);
+        metal.addColorStop(0, `rgba(10, 16, 40, ${0.55 + towerGlow * 0.10})`);
+        metal.addColorStop(0.45, `rgba(255, 252, 245, ${0.06 + towerGlow * 0.06})`);
+        metal.addColorStop(1, `rgba(10, 16, 40, ${0.62 + towerGlow * 0.12})`);
+        ctx.strokeStyle = metal;
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(bx, by1);
+        ctx.lineTo(bx, by2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // ===== BEAT 4: Climbing the tower (= t: 350-600) =====
+    const climbStart = 380;
+    const climbDur = 200;
+    const climb = easeOutCubic(clamp((t - climbStart) / climbDur, 0, 1));
+    let heroX = null;
+    let heroY = null;
+    if (climb > 0.001) {
+      const bob = Math.sin(p * Math.PI * 16) * 2.8;
+      const fromX = towerX - 28;
+      const toX = towerRight - 18;
+      const cx = fromX + (toX - fromX) * (0.25 + climb * 0.75);
+      const cy = (towerY + towerH - 36) - (towerH - 120) * climb + bob;
+      const cr = 18;
+      heroX = cx;
+      heroY = cy;
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.25)";
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 4;
+      ctx.beginPath();
+      ctx.arc(cx, cy, cr + 2, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+      ctx.clip();
+      if (!drawCoverImage(art.face, cx - cr, cy - cr, cr * 2, cr * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
+        ctx.fillStyle = "#f4cfaa";
+        ctx.fillRect(cx - cr, cy - cr, cr * 2, cr * 2);
+      }
+      ctx.restore();
+
+      // Handhold ticks.
+      ctx.save();
+      ctx.globalAlpha = 0.35 + climb * 0.25;
+      ctx.strokeStyle = "rgba(255, 247, 232, 0.65)";
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 7; i += 1) {
+        const yy = towerY + 70 + i * 38;
+        ctx.beginPath();
+        ctx.moveTo(towerRight - 10, yy);
+        ctx.lineTo(towerRight + 6, yy - 6);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // ===== BEAT 5: Panting at top (= t: 600-720) =====
+    const pantStart = 620;
+    const pantDur = 100;
+    const pant = clamp((t - pantStart) / pantDur, 0, 1);
+    if (pant > 0.001 && heroX != null && heroY != null) {
+      ctx.save();
+      ctx.globalAlpha = pant;
+      const bubbleW = 204;
+      const bubbleH = 44;
+      const bubbleX = heroX - bubbleW / 2;
+      const bubbleY = heroY - 74;
+
+      ctx.shadowColor = "rgba(0,0,0,0.28)";
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetY = 6;
+      ctx.fillStyle = "rgba(255, 252, 246, 0.96)";
+      roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 18);
+      ctx.fill();
+      ctx.shadowColor = "transparent";
+
+      ctx.fillStyle = "rgba(255, 252, 246, 0.96)";
+      ctx.beginPath();
+      ctx.moveTo(heroX - 10, bubbleY + bubbleH - 2);
+      ctx.lineTo(heroX + 8, bubbleY + bubbleH - 2);
+      ctx.lineTo(heroX - 2, heroY - 24);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(25, 70, 184, 0.18)";
+      ctx.lineWidth = 2;
+      roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 18);
+      ctx.stroke();
+
+      ctx.fillStyle = "#16203d";
+      ctx.font = "bold 14px Avenir Next, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("哈…哈…終於爬上來了…", heroX, bubbleY + bubbleH / 2 + 1);
+      ctx.textBaseline = "alphabetic";
+      ctx.restore();
+    }
+
+    // Tower label.
+    const towerLabelAlpha = clamp((t - 300) / 40, 0, 1);
+    ctx.save();
+    ctx.globalAlpha = towerLabelAlpha;
+    ctx.fillStyle = "#fff7e8";
+    ctx.font = "bold 16px Avenir Next, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("能量巨塔", towerX + towerW / 2, towerY + 340);
+    ctx.fillStyle = "rgba(255, 247, 232, 0.72)";
+    ctx.font = "12px Avenir Next, sans-serif";
+    ctx.fillText("康貝特200p封印處", towerX + towerW / 2, towerY + 364);
+    ctx.restore();
+
+    ctx.restore(); // end towerPanOffset
+  }
+
+  // Subtle caption "殺出一條血路" during the run.
+  if (t > 100 && t < 400) {
+    ctx.save();
+    const capAlpha = clamp((t - 100) / 30, 0, 1) * clamp((400 - t) / 60, 0, 1);
+    ctx.globalAlpha = capAlpha;
+    ctx.fillStyle = "rgba(12, 18, 35, 0.55)";
+    roundRect(24, HEIGHT - 74, 430, 52, 18);
+    ctx.fill();
+    ctx.fillStyle = "#fff7e8";
+    ctx.font = "bold 16px Avenir Next, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText("殺出一條血路 → 前往巨塔", 44, HEIGHT - 48);
+    ctx.textBaseline = "alphabetic";
+    ctx.restore();
+  }
+
+  // Final epic caption near the end.
+  if (t > 680 && t < STAGE_TWO_OUTRO_TOTAL_FRAMES) {
+    ctx.save();
+    const finalCap = clamp((t - 680) / 30, 0, 1) * clamp((STAGE_TWO_OUTRO_TOTAL_FRAMES - t) / 40, 0, 1);
+    ctx.globalAlpha = finalCap;
+    const vignette = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, 80, WIDTH / 2, HEIGHT / 2, 760);
+    vignette.addColorStop(0, "rgba(0,0,0,0)");
+    vignette.addColorStop(0.55, "rgba(0,0,0,0.5)");
+    vignette.addColorStop(1, "rgba(0,0,0,0.8)");
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.fillStyle = "#ffec8c";
+    ctx.font = "bold 28px Avenir Next, sans-serif";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = 16;
+    ctx.fillText("決戰！能量之巔", WIDTH / 2, HEIGHT / 2 - 6);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "rgba(255, 247, 232, 0.82)";
+    ctx.font = "600 16px Avenir Next, sans-serif";
+    ctx.fillText("奪回康貝特200p，重回大街小巷", WIDTH / 2, HEIGHT / 2 + 26);
+    ctx.restore();
+  }
+}
+
+function drawStageTwoTowerBackdrop(stageTwo) {
+  // Sky → dusk gradient (higher altitude / tower roof).
+  const gradient = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  gradient.addColorStop(0, "rgba(178, 220, 255, 1)");
+  gradient.addColorStop(0.55, "rgba(255, 236, 200, 1)");
+  gradient.addColorStop(1, "rgba(30, 40, 86, 1)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  // Far skyline (avoid chunky “blocks”).
+  for (let i = 0; i < 7; i += 1) {
+    const w = 56 + (i % 3) * 18;
+    const h = 210 + (i % 4) * 34;
+    const x = 22 + i * 140 + (i % 2 ? 10 : -6);
+    const y = 108 + (i % 2) * 10;
+    const grad = ctx.createLinearGradient(x, y, x, y + h);
+    grad.addColorStop(0, "rgba(8, 12, 28, 0.14)");
+    grad.addColorStop(1, "rgba(8, 12, 28, 0.02)");
+    ctx.fillStyle = grad;
+    roundRect(x, y, w, h, 14);
+    ctx.fill();
+
+    // small spire top
+    ctx.fillStyle = "rgba(8, 12, 28, 0.10)";
+    ctx.beginPath();
+    ctx.moveTo(x + w / 2, y - 22);
+    ctx.lineTo(x + w / 2 - 10, y);
+    ctx.lineTo(x + w / 2 + 10, y);
+    ctx.closePath();
+    ctx.fill();
+
+    // window hints
+    ctx.fillStyle = "rgba(255, 255, 255, 0.035)";
+    for (let r = 0; r < 5; r += 1) {
+      ctx.fillRect(x + 14, y + 26 + r * 28, w - 28, 6);
+    }
+  }
+
+  // Main roof platform band.
+  ctx.fillStyle = "rgba(10, 16, 40, 0.55)";
+  ctx.fillRect(0, stageTwo.groundY - 70, WIDTH, 70);
+  ctx.fillStyle = "rgba(255, 216, 102, 0.12)";
+  ctx.fillRect(0, stageTwo.groundY - 70, WIDTH, 6);
+
+  // Subtle diagonal spotlight / haze.
+  const haze = ctx.createLinearGradient(520, 210, 920, 420);
+  haze.addColorStop(0, "rgba(255, 255, 255, 0.0)");
+  haze.addColorStop(0.45, "rgba(255, 255, 255, 0.08)");
+  haze.addColorStop(1, "rgba(255, 255, 255, 0.0)");
+  ctx.fillStyle = haze;
+  ctx.beginPath();
+  ctx.moveTo(520, 210);
+  ctx.lineTo(960, 270);
+  ctx.lineTo(960, 520);
+  ctx.lineTo(600, 520);
+  ctx.closePath();
+  ctx.fill();
 }
 
 function drawPlayer() {
@@ -1285,7 +1945,7 @@ function drawHud() {
         ? `進度 ${stageOnePercent}%`
         : "金庫開啟"
       : isStageOneGoalLocked()
-        ? "提神聯盟仍在"
+        ? "兩大霸主仍在"
         : "壟斷碎裂",
     WIDTH - 24,
     60
@@ -1603,7 +2263,7 @@ function drawPrologueIntro() {
     t < 0.18
       ? ["提神宇宙的暗黑時代", "曾經的國民霸主，只剩一間苦撐的小廠。"]
       : t < 0.38
-        ? ["大廠夾殺開始", "紅牛壓通路、魔爪搶聲量，你的上架權被擠到角落。"]
+        ? ["雙霸主夾殺開始", "紅牛壓通路、魔爪搶聲量，彼此競爭卻都把康貝特擠到角落。"]
         : t < 0.58
           ? ["終極配方被封存", "通路被壓到失聲，康貝特200p 被封進巨塔金庫。"]
           : t < 0.74
@@ -1678,14 +2338,20 @@ function drawOverlay() {
     ctx.textAlign = "center";
     ctx.fillStyle = palette.stripeBlue;
     ctx.font = "bold 14px Avenir Next, sans-serif";
+    ctx.fillText("提神宇宙暗黑時代", panelX + panelW / 2, panelY + 58);
 
     ctx.fillStyle = "#16203d";
-    ctx.font = "bold 34px Avenir Next, sans-serif";
-    ctx.fillText("拯救康貝特大作戰", panelX + panelW / 2, panelY + 132);
+    ctx.font = "bold 32px Avenir Next, sans-serif";
+    ctx.fillText("拯救康貝特200P", panelX + panelW / 2, panelY + 102);
+
+    ctx.fillStyle = "#526182";
+    ctx.font = "17px Avenir Next, sans-serif";
+    ctx.fillText("紅牛搶通路，魔爪搶聲量；兩大霸主都想把小廠擠出市場。", panelX + panelW / 2, panelY + 140);
+    ctx.fillText("7 種維他命 + 胺基酸 + 牛磺酸，咖啡因 1.5 倍、容量 1.25 倍。", panelX + panelW / 2, panelY + 168);
 
     const buttonW = 356;
     const buttonX = panelX + (panelW - buttonW) / 2;
-    const buttonY = panelY + 190;
+    const buttonY = panelY + 210;
     const buttonH = 44;
     const buttonGradient = ctx.createLinearGradient(buttonX, buttonY, buttonX + buttonW, buttonY + buttonH);
     buttonGradient.addColorStop(0, palette.stripeRed);
@@ -1696,7 +2362,7 @@ function drawOverlay() {
 
     ctx.fillStyle = "#fff7e8";
     ctx.font = "bold 24px Avenir Next, sans-serif";
-    ctx.fillText("開始", buttonX + buttonW / 2, buttonY + 29);
+    ctx.fillText("開始逆襲", buttonX + buttonW / 2, buttonY + 29);
     return;
   }
 
@@ -1746,9 +2412,9 @@ function drawOverlay() {
     ctx.font = "18px Avenir Next, sans-serif";
     const startingShots = game.stageTwo ? game.stageTwo.startingShots : 6;
     const targetCount = game.stageTwo ? game.stageTwo.targets.length : 0;
-    ctx.fillText("敵人買斷貨架，把鋁罐堆成通路高牆封鎖視野。", panelX + panelW / 2, panelY + 146);
-    ctx.fillText(`用 ${startingShots} 發僅存產品砲彈，擊破 ${targetCount} 個封鎖點。`, panelX + panelW / 2, panelY + 178);
-    ctx.fillText("拉越滿越有力，砸碎堡壘就能奪回市場上架權。", panelX + panelW / 2, panelY + 210);
+    ctx.fillText("紅牛壓貨架，魔爪搶聲量；兩邊都把通路變成高牆。", panelX + panelW / 2, panelY + 146);
+    ctx.fillText(`用 ${startingShots} 發康貝特200p砲彈，擊破 ${targetCount} 個封鎖點。`, panelX + panelW / 2, panelY + 178);
+    ctx.fillText("7種維他命 + 胺基酸 + 牛磺酸，清爽氣泡喝了再上。", panelX + panelW / 2, panelY + 210);
     ctx.font = "bold 16px Avenir Next, sans-serif";
     ctx.fillText("P 暫停  ·  M 聲音  ·  R 重開", panelX + panelW / 2, panelY + 242);
 
@@ -1833,7 +2499,7 @@ function drawOverlay() {
     ctx.fillText(adCopy.lines[2], 92, 252);
     ctx.fillStyle = "#1946b8";
     ctx.font = "bold 20px Avenir Next, sans-serif";
-    ctx.fillText("康貝特200p：小廠逆襲", 92, 288);
+    ctx.fillText("康貝特200p：7種維他命 + 胺基酸 + 牛磺酸", 92, 288);
 
     const footerY = HEIGHT - 146;
     // Benefit bullets: treat as in-world “補給情報”，and never overlap the footer.
@@ -2098,7 +2764,7 @@ function drawEndingRescueScene() {
   } else if (ending.timer < ENDING_RESCUE_REUNION_START + ENDING_RESCUE_REUNION_FRAMES) {
     drawSpeechBubble(152, 112, 330, 60, "接住這瓶本土靈魂\n生產線要重新轟鳴了");
   } else {
-    drawSpeechBubble(468, 108, 360, 64, "紅牛與魔爪倒地\n國民提神飲料逆襲成功");
+    drawSpeechBubble(468, 108, 360, 64, "紅牛與魔爪各自倒地\n國民提神飲料逆襲成功");
   }
 
   if (reunionRatio > 0) {
@@ -2189,7 +2855,7 @@ function drawResultPanel() {
       ? "壟斷結界碎裂"
       : level.goal
         ? "金庫開啟"
-        : "提神聯盟擊破"
+        : "兩大霸主擊破"
     : "逆襲失敗";
   ctx.fillText(titleText, WIDTH / 2, panelY + 70);
   ctx.restore();
@@ -2251,7 +2917,7 @@ function drawResultPanel() {
 
     ctx.fillStyle = "rgba(255, 246, 228, 0.92)";
     ctx.font = "18px Avenir Next, sans-serif";
-    ctx.fillText("傳說配方回歸：7種維他命 + 胺基酸 + 牛磺酸，國民精神值補滿。", WIDTH / 2, cardsTop + cardH + 38);
+    ctx.fillText("傳說配方回歸：7種維他命 + 胺基酸 + 牛磺酸，咖啡因1.5倍、容量1.25倍。", WIDTH / 2, cardsTop + cardH + 38);
   } else if (isWin) {
     const cardW = panelW - 60;
     const leftX = panelX + 30;
@@ -2268,7 +2934,7 @@ function drawResultPanel() {
 
     ctx.fillStyle = "rgba(255, 246, 228, 0.92)";
     ctx.font = "18px Avenir Next, sans-serif";
-    ctx.fillText("高CP值、本土底氣、喝了再上：康貝特200p重回市場。", WIDTH / 2, cardsTop + cardH + 38);
+    ctx.fillText("高CP值、本土底氣、活力氣泡清爽順口：康貝特200p重回市場。", WIDTH / 2, cardsTop + cardH + 38);
   } else {
     const cardW = panelW - 60;
     const leftX = panelX + 30;
@@ -2293,7 +2959,7 @@ function drawResultPanel() {
     ctx.fillText(
       game.stage === 2
         ? `這輪用了 ${stageTwoShotsUsed} 發，還差 ${stageTwoTargetsLeft} 個目標。`
-        : "提神聯盟還沒倒，小廠逆襲只是暫時受阻。",
+        : "兩大霸主還沒倒，小廠逆襲只是暫時受阻。",
       WIDTH / 2,
       cardsTop + cardH + 36
     );
@@ -2425,7 +3091,7 @@ function _legacyDrawResultPanel_unused() {
           ? "壟斷結界碎裂"
           : level.goal
             ? "金庫開啟"
-            : "提神聯盟擊破"
+            : "兩大霸主擊破"
         : "精神值見底",
       WIDTH / 2,
       218
@@ -2523,6 +3189,16 @@ function render() {
     return;
   }
 
+  // Tower storyboard transitions should not show live gameplay behind them.
+  // Otherwise the Stage2 scene + transition overlay looks like a double-refresh / layered backgrounds.
+  if (game.sceneTransition?.variant === "tower" && (game.sceneTransition.alpha ?? 0) > 0.02) {
+    syncDebugHudButtonsVisibility();
+    // Neutral backdrop so the transition reads cleanly.
+    drawIntroBackdrop();
+    drawSceneTransition();
+    return;
+  }
+
   // Intro screen should be a clean UI backdrop (no live gameplay scene behind it).
   if (game.state === "intro") {
     syncDebugHudButtonsVisibility();
@@ -2537,7 +3213,9 @@ function render() {
     syncDebugHudButtonsVisibility();
     drawStageTwoScene();
 
-    if (game.state === "stage2Playing") {
+    if (game.state === "stage2Outro") {
+      drawStageTwoOutroOverlay();
+    } else if (game.state === "stage2Playing") {
       drawHud();
     }
 

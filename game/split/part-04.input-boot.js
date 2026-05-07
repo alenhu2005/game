@@ -85,6 +85,12 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (game.state === "stage2Outro" && (event.code === "Space" || event.code === "Enter")) {
+    event.preventDefault();
+    finishStageTwoToBossCutscene();
+    return;
+  }
+
   if (game.state === "ad" && canSkipDeathAd() && event.code === "Enter") {
     event.preventDefault();
     finishDeathAd();
@@ -384,6 +390,12 @@ canvas.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (game.state === "stage2Outro") {
+    finishStageTwoToBossCutscene();
+    event.preventDefault();
+    return;
+  }
+
   if (startStageTwoPointerDrag(point, event)) {
     event.preventDefault();
   }
@@ -469,6 +481,12 @@ canvas.addEventListener(
     }
     if (game.state === "prologue") {
       finishPrologueIntro();
+      event.preventDefault();
+      return;
+    }
+
+    if (game.state === "stage2Outro") {
+      finishStageTwoToBossCutscene();
       event.preventDefault();
       return;
     }

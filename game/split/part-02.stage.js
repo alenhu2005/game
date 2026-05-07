@@ -145,7 +145,7 @@ function respawnPlayer() {
 function getDeathAdCopy(reason, brand) {
   if (reason === "hit" && brand === "redbull") {
     return {
-      kicker: "提神聯盟碰撞實測",
+      kicker: "雙霸主碰撞實測",
       headline: "有翅膀沒錯，但你先摔下去了",
       lines: [
         "極限狂牛掌控天空與速度，但不會幫你奪回貨架。",
@@ -158,7 +158,7 @@ function getDeathAdCopy(reason, brand) {
 
   if (reason === "hit" && brand === "monster") {
     return {
-      kicker: "提神聯盟碰撞實測",
+      kicker: "雙霸主碰撞實測",
       headline: "魔爪很兇，你的進度先被抓走",
       lines: [
         "深淵魔爪的能量網罩住夜晚，也罩住你的路線。",
@@ -201,7 +201,7 @@ function getDeathAdCopy(reason, brand) {
     lines: [
       "剛剛那口沒救到你，這次換 200p 上場。",
       "7 種維他命 + 胺基酸 + 牛磺酸。",
-      "活力氣泡，清爽順口好喝。",
+      "咖啡因 1.5 倍、容量 1.25 倍，活力氣泡清爽順口。",
     ],
     gameOverText: "逆襲暫停",
   };
@@ -214,7 +214,7 @@ function getEnemyStompText(brand) {
   if (brand === "monster") {
     return "魔爪被踩熄火";
   }
-  return "提神聯盟被踩掉";
+  return "雙霸主封鎖被踩掉";
 }
 
 function finishDeathAd() {
@@ -1147,7 +1147,7 @@ function updateBossAi(enemy, player, frameScale) {
   ) {
     level.bossEngaged = true;
     bossJustEngaged = true;
-    spawnStageOnePopup("提神聯盟開戰！", cx, enemy.y - 22, "#ff2244");
+    spawnStageOnePopup("雙霸主開戰！", cx, enemy.y - 22, "#ff2244");
     triggerStageOneShake(9);
     soundFx.bossRoar();
     spawnBossBurst(cx, enemy.y + enemy.h * 0.4, enemy.brand, 28, {
@@ -1688,8 +1688,8 @@ function stompBossFromPlayer(enemy, player) {
     firstFormBroken
       ? "極限狂牛倒下，深淵魔爪降臨！"
       : bossWillFall
-        ? "提神聯盟崩解！"
-        : `聯盟 -1（剩 ${enemy.hp}）`,
+        ? "雙霸主封鎖崩解！"
+        : `霸主 -1（剩 ${enemy.hp}）`,
     enemy.x + enemy.w / 2,
     enemy.y - 8,
     firstFormBroken || bossWillFall ? "#ff7b20" : "#ffd166"
@@ -2405,7 +2405,7 @@ function updateBossIntroCutscene(frameScale) {
       game.pendingStageTransition = SLINGSHOT_FIRST_ORDER ? "toEndingAfterBoss" : "stage2";
       game.pendingStageTransitionTimer = Math.max(game.pendingStageTransitionTimer ?? 0, 36);
       game.overlayTimer = 108;
-      game.overlayText = SLINGSHOT_FIRST_ORDER ? "提神聯盟崩解，準備拯救200p" : "通路破口開啟，準備進第二階段";
+      game.overlayText = SLINGSHOT_FIRST_ORDER ? "兩大霸主倒下，準備拯救200p" : "通路破口開啟，準備進第二階段";
     }
     return;
   }
@@ -2518,7 +2518,7 @@ function drawBossIntroCutscene() {
     line = turn?.line ?? "「喝了再上！」";
     accent = "#ff7b20";
   } else if (cs.phase === "outro") {
-    speaker = "提神聯盟警報";
+    speaker = "能量巨塔警報";
     line = "能量巨塔封鎖解除，決戰正式開始。";
     accent = "#ff7b20";
   }
@@ -2565,7 +2565,8 @@ function drawBossIntroCutscene() {
   ctx.globalAlpha = 0.7 + 0.3 * fadeIn;
   const underlineW = 120 + Math.sin((cs.timer ?? 0) * 0.12) * 10;
   const underlineX = panelX + 22;
-  const underlineY = panelY + 38;
+  // Keep the underline safely above the body text to avoid overlap on some font metrics.
+  const underlineY = Math.min(panelY + 38, panelY + BODY_TOP - 20);
   const grad = ctx.createLinearGradient(underlineX, underlineY, underlineX + underlineW, underlineY);
   grad.addColorStop(0, accent);
   grad.addColorStop(1, "rgba(255,255,255,0)");
@@ -2665,7 +2666,7 @@ function updateGoal() {
     if (isStageOneGoalLocked()) {
       if ((game.overlayTimer ?? 0) <= 0) {
         game.overlayTimer = 60;
-        game.overlayText = "先擊破提神聯盟，才能打開200p金庫！";
+        game.overlayText = "先擊破兩大霸主，才能打開200p金庫！";
       }
       return;
     }
@@ -2694,7 +2695,7 @@ function step(frameScale) {
   if (
     game.stage === 2 &&
     game.stageTwo &&
-    (game.state === "stage2Intro" || game.state === "stage2Playing") &&
+    (game.state === "stage2Intro" || game.state === "stage2Playing" || game.state === "stage2Outro") &&
     !game.endingScene &&
     game.state !== "ending" &&
     game.state !== "won" &&
@@ -2706,16 +2707,22 @@ function step(frameScale) {
     if (!game.stageTwoClearHandled) {
       game.stageTwoClearHandled = true;
       if (SLINGSHOT_FIRST_ORDER) {
-        startSceneTransition(() => enterBossStageFromSlingshot(), SCENE_TR_SLINGSHOT_TO_BOSS);
+        if (game.state !== "stage2Outro") {
+          startStageTwoToBossCutscene(game.stageTwo);
+        }
       } else {
         startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
       }
     }
-    // Hard force if we're still stuck after ~1.2s.
-    if (game.stageTwoClearedFrames > 72) {
+    // Hard force if we're still stuck after ~13s (longer for the new cinematic).
+    if (game.stageTwoClearedFrames > 820) {
       game.stageTwoClearedFrames = 0;
       if (SLINGSHOT_FIRST_ORDER) {
-        enterBossStageFromSlingshot();
+        if (game.state === "stage2Outro") {
+          finishStageTwoToBossCutscene();
+        } else {
+          enterBossStageFromSlingshot();
+        }
       } else {
         startEndingRescueScene();
       }
@@ -2748,6 +2755,12 @@ function step(frameScale) {
     if (input.jumpPressed) {
       enterStageTwoPlaying();
     }
+    updateStageTwo(frameScale);
+    updateHud();
+    return;
+  }
+
+  if (game.state === "stage2Outro") {
     updateStageTwo(frameScale);
     updateHud();
     return;

@@ -117,13 +117,13 @@ const BOSS_RISING_STOMP_CENTER_INSET = 6;
 const HIDDEN_BOSS_SKIP_KEY = "Backquote";
 const BOSS_INTRO_LINES_BOSS = [
   "「能闖上能量巨塔，你這間邊緣小廠還算有骨氣。可惜通路、速度、天空，全都在紅牛帝國的資本版圖裡。康貝特，你的上架權早就被我們買斷了。」",
-  "「我們不需要結盟。光靠資本與通路，就能把市場視野夾到只剩我們的標籤。你們那瓶終極配方『康貝特200p』，只配被封在塔頂金庫，永遠變成舊時代標本！」",
+  "「別搞錯，紅牛帝國跟魔爪本來就各自為王。只是這個市場太擠了，你們那瓶終極配方『康貝特200p』，只配被封在塔頂金庫，永遠變成舊時代標本！」",
   "「上班族、學生、基層勞工的疲憊不值錢，值錢的是我們包裝過的菁英速度。想救配方？先從我的極限狂牛衝撞下活下來！」",
 ];
 const BOSS_INTRO_LINES_PLAYER = [
   "「你們買斷貨架，卻買不走民眾真正需要的底氣。康貝特不是豪華招牌，是累到快倒的人還能再站起來的那一口。」",
   "「200p 不該被封印在你們的能量巨塔，它是本土小廠的心臟，也是高 CP 值提神的證明。今天我來奪回上架權，也奪回被壟斷的市場視野！」",
-  "「紅牛、魔爪一起來也一樣。只要生產線還能轟鳴，只要有人還在撐，我就會把康貝特200p帶回大街小巷——喝、了、再、上！」",
+  "「紅牛要打、魔爪也要搶，那就一個一個來。只要生產線還能轟鳴，只要有人還在撐，我就會把康貝特200p帶回大街小巷——喝、了、再、上！」",
 ];
 const BOSS_INTRO_EXCHANGE = [
   { speaker: "boss", line: BOSS_INTRO_LINES_BOSS[0] },
@@ -137,7 +137,7 @@ const BOSS_INTRO_EXCHANGE = [
 const BOSS_VICTORY_EXCHANGE = SLINGSHOT_FIRST_ORDER
   ? [
       { speaker: "player", line: "「通路高牆碎了，能量巨塔也倒了。」" },
-      { speaker: "player", line: "「學生和上班族的疲憊，不該只剩外商能定價。」" },
+      { speaker: "player", line: "「學生和上班族的疲憊，不該只剩兩大霸主能定價。」" },
       { speaker: "player", line: "「康貝特200p，回到大家手上的時間到了！」" },
     ]
   : [
@@ -148,6 +148,9 @@ const BOSS_VICTORY_EXCHANGE = SLINGSHOT_FIRST_ORDER
 const DEATH_AD_DURATION = 360;
 const DEATH_AD_SKIP_AT = 90;
 const AUDIO_MASTER_GAIN = 0.16;
+const AUDIO_REVERB_MIX = 0.14;
+const AUDIO_DELAY_TIME = 0.12;
+const AUDIO_DELAY_FEEDBACK = 0.25;
 const COIN_TIME_BONUS = 1.05;
 
 const STAGE_ONE_DIFFICULTY = {
@@ -545,20 +548,20 @@ const palette = {
  */
 const COMBAT_200P_TAGLINES = [
   "這時候你需要來一瓶【康貝特200P】",
-  "咖啡因勁爽提神，活力滿分",
-  "加大容量，續航力十足",
+  "咖啡因增量 1.5 倍，活力更到位",
+  "容量增加 1.25 倍，續航力十足",
   "經典香氣 + 微氣泡，順口好喝",
   "輕巧瓶身，隨時補充能量",
-  "健康黃金比例：7種維生素 + 牛磺酸 + 胺基酸",
+  "健康黃金比例：7種維他命 + 牛磺酸 + 胺基酸",
   "滿足一天活力，喝了再上",
 ];
 
 const COMBAT_200P_BENEFITS = [
-  "✅ 咖啡因勁爽提神，活力滿分",
-  "✅ 加大容量，滿滿能量，續航力十足",
-  "✅ 經典香氣加微氣泡，清爽順口",
-  "✅ 輕巧瓶身設計，隨時隨地補能量",
-  "✅ 健康黃金比例：7種維生素＋牛磺酸＋胺基酸",
+  "咖啡因 1.5 倍，提神更有感",
+  "容量 1.25 倍，續航更久",
+  "7 種維他命 + 胺基酸 + 牛磺酸",
+  "活力氣泡，清爽順口好喝",
+  "高 CP 值，本土底氣補滿",
 ];
 
 function getRotatingCopy(frame, list, secondsPer = 3) {
@@ -755,8 +758,38 @@ function getAudioContext() {
   }
   if (!audio.context) {
     audio.context = new AudioContextClass();
+
+    // Master bus (dry)
     audio.master = audio.context.createGain();
     audio.master.gain.value = AUDIO_MASTER_GAIN;
+
+    // Reverb bus (wet) - creates spatial depth
+    audio.reverbGain = audio.context.createGain();
+    audio.reverbGain.gain.value = AUDIO_REVERB_MIX;
+    audio.reverbSend = audio.context.createGain();
+    audio.reverbSend.gain.value = 0.35;
+
+    // Simple convolution-like reverb via filtered noise tail
+    const revLen = Math.max(1, Math.floor(audio.context.sampleRate * 0.32));
+    audio.reverbBuffer = audio.context.createBuffer(1, revLen, audio.context.sampleRate);
+    const revData = audio.reverbBuffer.getChannelData(0);
+    let revVal = 0;
+    for (let i = 0; i < revLen; i += 1) {
+      revVal += (Math.random() - 0.5) * 0.2;
+      revVal *= 0.997;
+      revData[i] = revVal * 0.15;
+    }
+
+    // Delay effect for epic moments
+    audio.delayGain = audio.context.createGain();
+    audio.delayGain.gain.value = AUDIO_DELAY_FEEDBACK;
+    audio.delayTime = AUDIO_DELAY_TIME;
+
+    // Effects send bus
+    audio.effectsBus = audio.context.createGain();
+    audio.effectsBus.gain.value = 1.0;
+    audio.effectsBus.connect(audio.master);
+
     audio.master.connect(audio.context.destination);
 
     audio.musicGain = audio.context.createGain();
@@ -769,8 +802,45 @@ function getAudioContext() {
     for (let i = 0; i < noiseData.length; i += 1) {
       noiseData[i] = Math.random() * 2 - 1;
     }
+
+    // Reverb convolver
+    try {
+      const convolver = audio.context.createConvolver();
+      convolver.buffer = audio.reverbBuffer;
+      audio.reverbNode = convolver;
+      audio.reverbSend.connect(convolver);
+      convolver.connect(audio.reverbGain);
+      audio.reverbGain.connect(audio.master);
+    } catch (_) { /* fallback: skip reverb */ }
   }
   return audio.context;
+}
+
+function scheduleToneWithEffects({
+  freq,
+  endFreq = freq,
+  offset = 0,
+  startTime = null,
+  duration = 0.08,
+  volume = 0.1,
+  type = "triangle",
+  attack = 0.008,
+  release = 0.12,
+  bus = null,
+  reverb = 0,
+  delay = 0,
+}) {
+  scheduleTone({ freq, endFreq, offset, startTime, duration, volume, type, attack, release, bus });
+  if (reverb > 0.001) {
+    scheduleTone({ freq: freq * 0.98, endFreq: endFreq * 0.96, offset: offset + 0.012, startTime, duration: duration * 1.4, volume: volume * reverb * 0.35, type, attack: attack * 2, release: release * 2.2, bus: audio.effectsBus });
+    scheduleNoiseBurst({ startTime: (startTime ?? 0) + offset + 0.018, duration: duration * 0.7, volume: volume * reverb * 0.08, highpass: 800, lowpass: 4000, bus: audio.effectsBus });
+  }
+  if (delay > 0.001) {
+    const dt = AUDIO_DELAY_TIME;
+    const fb = AUDIO_DELAY_FEEDBACK * delay;
+    scheduleTone({ freq: freq * 0.97, endFreq: endFreq * 0.94, offset: offset + dt, startTime, duration: duration * 0.6, volume: volume * fb * 0.4, type, attack, release: release * 1.2, bus: audio.effectsBus });
+    scheduleTone({ freq: freq * 0.95, endFreq: endFreq * 0.92, offset: offset + dt * 2, startTime, duration: duration * 0.4, volume: volume * fb * 0.2, type, attack, release: release * 1.5, bus: audio.effectsBus });
+  }
 }
 
 function startBackgroundMusic() {
@@ -1278,6 +1348,18 @@ const soundFx = {
     scheduleTone({ freq: 880, endFreq: 1180, duration: 0.06, volume: 0.08, type: "triangle", release: 0.06 });
     scheduleTone({ freq: 1180, endFreq: 1480, offset: 0.05, duration: 0.07, volume: 0.075, type: "triangle", release: 0.07 });
   },
+  glassHit() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleTone({ freq: 1560, endFreq: 2400, startTime: t, duration: 0.04, volume: 0.07, type: "triangle", attack: 0.002, release: 0.03 });
+    scheduleTone({ freq: 2200, endFreq: 1200, startTime: t + 0.015, duration: 0.06, volume: 0.05, type: "square", attack: 0.002, release: 0.05 });
+    scheduleNoiseBurst({ startTime: t, duration: 0.055, volume: 0.03, highpass: 2200, lowpass: 9000 });
+  },
+  canCollapse() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleNoiseBurst({ startTime: t + 0.02, duration: 0.38, volume: 0.075, highpass: 140, lowpass: 2600 });
+    scheduleTone({ freq: 140, endFreq: 64, startTime: t + 0.02, duration: 0.34, volume: 0.085, type: "sawtooth", attack: 0.01, release: 0.26 });
+    scheduleTone({ freq: 220, endFreq: 92, startTime: t + 0.06, duration: 0.3, volume: 0.06, type: "square", attack: 0.01, release: 0.24 });
+  },
   stomp() {
     scheduleTone({ freq: 240, endFreq: 170, duration: 0.07, volume: 0.09, type: "square", release: 0.05 });
     scheduleTone({ freq: 360, endFreq: 300, offset: 0.04, duration: 0.06, volume: 0.055, type: "triangle", release: 0.05 });
@@ -1684,8 +1766,8 @@ function buildLevel() {
     decorations.towers.push({ x, y, w, h, color });
   }
 
-  function addBillboard(x, y, w = 218, h = 132, caption = "喝一口，繼續衝", tag = "提神") {
-    decorations.signs.push({ x, y, w, h, caption, tag });
+  function addBillboard(x, y, w = 218, h = 132, caption = "喝一口，繼續衝", tag = "提神", lines = []) {
+    decorations.signs.push({ x, y, w, h, caption, tag, lines });
   }
 
   function addCheckpoint(x, spawnX, label) {
@@ -1695,10 +1777,22 @@ function buildLevel() {
   // Stage 1 is boss-only: keep arena ground + billboard.
   addGround(3000, 1540);
   // Background billboards: worldbuilding (not sponsorship). Keep above playfield.
-  addBillboard(3168, 172, 210, 124, "任務目標：拯救康貝特200P", "");
-  addBillboard(3336, 156, 224, 132, "喝一口，繼續衝", "");
-  addBillboard(3568, 182, 196, 118, "情報：200P 在塔頂金庫", "");
-  addBillboard(4048, 166, 220, 128, "補給就緒 · 喝了再上", "");
+  addBillboard(3150, 154, 250, 136, "國民底氣回歸", "康貝特200P", [
+    "7維他命補給",
+    "胺基酸 + 牛磺酸",
+  ]);
+  addBillboard(3430, 176, 230, 120, "配方雙重升級", "喝了再上", [
+    "咖啡因 1.5倍",
+    "容量 1.25倍",
+  ]);
+  addBillboard(3688, 150, 244, 134, "清爽氣泡補能", "活力氣泡", [
+    "順口不膩",
+    "學生上班族都撐",
+  ]);
+  addBillboard(4048, 162, 236, 128, "奪回塔頂配方", "市場逆襲", [
+    "高CP值提神",
+    "送回大街小巷",
+  ]);
   addBoss(3908, FLOOR_Y - 76, 3844, 4184);
 
   const stageOneWorldWidth = 4680;
@@ -1819,6 +1913,7 @@ const game = {
   pendingDeathReason: null,
   pendingDeathBrand: null,
   stageTwo: null,
+  stageTwoOutro: null,
   comboCount: 0,
   comboTimer: 0,
   comboBest: 0,
@@ -1831,6 +1926,40 @@ const game = {
   bossShockwaveHintShown: false,
   endingScene: null,
 };
+
+const STAGE_TWO_OUTRO_TOTAL_FRAMES = 780;
+
+function startStageTwoToBossCutscene(stageTwo) {
+  const projectileBody = stageTwo?.projectile?.body;
+  const impactX =
+    stageTwo?.lastImpactX ??
+    projectileBody?.position?.x ??
+    stageTwo?.sling?.x ??
+    WIDTH * 0.6;
+  const impactY =
+    stageTwo?.lastImpactY ??
+    projectileBody?.position?.y ??
+    stageTwo?.sling?.y ??
+    HEIGHT * 0.5;
+  game.stageTwoOutro = {
+    timer: 0,
+    impactX,
+    impactY,
+    sfxPlayed: false,
+    glassPlayed: false,
+    collapsePlayed: false,
+    slowmo: 0,
+  };
+  game.state = "stage2Outro";
+  game.overlayTimer = 0;
+  game.overlayText = "";
+}
+
+function finishStageTwoToBossCutscene() {
+  if (game.state !== "stage2Outro") return;
+  game.stageTwoOutro = null;
+  enterBossStageFromSlingshot();
+}
 
 function enterWonResults() {
   if (game.stageTwo) {
@@ -1854,11 +1983,12 @@ const SCENE_TR_BOSS_TO_STAGE2 = {
   captionSub: "擊碎通路高牆",
 };
 const SCENE_TR_SLINGSHOT_TO_BOSS = {
-  outFrames: 150,
-  holdFrames: 300,
-  inFrames: 150,
-  caption: "前往第二階段",
-  captionSub: "決戰能量之巔",
+  // ~13.7s @ 60fps (used as the long storyboard bridge to the tower).
+  outFrames: 200,
+  holdFrames: 420,
+  inFrames: 200,
+  caption: "殺出一條血路",
+  captionSub: "仰望能量巨塔 → 登頂救出200p",
   variant: "tower",
 };
 const SCENE_TR_TO_ENDING = {
@@ -1971,109 +2101,792 @@ function drawTowerSceneTransition(tr, alpha) {
   const p = getTransitionVisualProgress(tr);
   const open = easeOutCubic(clamp((p - 0.12) / 0.44, 0, 1));
   const towerGlow = clamp((p - 0.44) / 0.42, 0, 1);
+  // Beat 3: hero at the base, then a fast pan-up to reveal the glowing dome/cage.
+  const panUp = easeOutCubic(clamp((p - 0.08) / 0.22, 0, 1));
+  const panYOffset = -220 + panUp * 260; // from base view (up) → top view (down)
+  const panSpeed = clamp((p - 0.09) / 0.12, 0, 1) * clamp((0.26 - p) / 0.12, 0, 1);
 
   ctx.save();
   ctx.globalAlpha = alpha * 0.92;
+  ctx.translate(0, panYOffset);
 
-  const path = ctx.createLinearGradient(180, 330, 780, 210);
-  path.addColorStop(0, "rgba(255, 123, 32, 0.12)");
-  path.addColorStop(0.55, "rgba(255, 216, 102, 0.28)");
-  path.addColorStop(1, "rgba(255, 255, 255, 0.04)");
-  ctx.fillStyle = path;
-  ctx.beginPath();
-  ctx.moveTo(180, 392);
-  ctx.lineTo(500, 314);
-  ctx.lineTo(830, 382);
-  ctx.lineTo(940, 540);
-  ctx.lineTo(0, 540);
-  ctx.lineTo(0, 454);
-  ctx.closePath();
-  ctx.fill();
+  // Cinematic sky + atmosphere (no gameplay bleed-through).
+  const sky = ctx.createLinearGradient(0, -120, 0, 620);
+  sky.addColorStop(0, "rgba(18, 28, 72, 1)");
+  sky.addColorStop(0.48, "rgba(12, 18, 35, 1)");
+  sky.addColorStop(1, "rgba(6, 10, 22, 1)");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, -120, WIDTH, HEIGHT + 240);
 
-  ctx.strokeStyle = `rgba(255, 216, 102, ${0.16 + towerGlow * 0.32})`;
-  ctx.lineWidth = 4;
-  ctx.setLineDash([18, 14]);
-  ctx.beginPath();
-  ctx.moveTo(180, 372);
-  ctx.bezierCurveTo(330, 318, 510, 286, 706, 194);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  const wallBaseX = 84 - open * 54;
-  const wallBaseY = 244 + Math.sin(p * Math.PI * 2) * 2;
-  const blockW = 56;
-  const blockH = 44;
-  const blocks = [
-    { x: 0, y: 0, rot: -0.08 },
-    { x: 62, y: -10, rot: 0.04 },
-    { x: 124, y: 2, rot: -0.03 },
-    { x: 30, y: 50, rot: 0.08 },
-    { x: 92, y: 48, rot: -0.06 },
-  ];
-  blocks.forEach((block, index) => {
-    ctx.save();
-    ctx.translate(wallBaseX + block.x - open * (14 + index * 7), wallBaseY + block.y + open * (index % 2 ? 16 : -10));
-    ctx.rotate(block.rot - open * (0.22 + index * 0.025));
-    ctx.fillStyle = "rgba(239, 42, 62, 0.95)";
-    roundRect(0, 0, blockW, blockH, 3);
+  // Stars (subtle, deterministic pattern).
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = "rgba(255, 252, 245, 1)";
+  for (let i = 0; i < 70; i += 1) {
+    const x = (i * 73) % 980;
+    const y = ((i * 131) % 420) - 40;
+    const r = 0.9 + ((i * 17) % 10) * 0.06;
+    ctx.globalAlpha = 0.12 + (((i * 29) % 10) / 10) * 0.22;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    roundRect(6, 6, blockW - 12, blockH - 12, 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(130, 149, 194, 0.72)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(14, 12, blockW - 28, blockH - 24);
-    ctx.restore();
-  });
+  }
+  ctx.restore();
 
-  drawTransitionCan(art.enemyRedBull, 232 - open * 42, 236 - open * 30, 72, -0.2 - open * 0.25, palette.stripeRed);
-  drawTransitionCan(art.enemyMonster, 302 - open * 24, 246 + open * 18, 78, 0.12 + open * 0.2, "#111827");
-  drawTransitionCan(art.product, 440 + open * 162, 328 - open * 116, 92, -0.08 + open * 0.14, "#f7fbff");
+  // Film grain (very subtle; sells the “cinematic” look).
+  ctx.save();
+  ctx.globalAlpha = 0.05;
+  ctx.fillStyle = "rgba(255,255,255,1)";
+  for (let i = 0; i < 180; i += 1) {
+    const x = (i * 53 + 17) % 980;
+    const y = ((i * 97 + 31) % 620) - 60;
+    const s = 1 + ((i * 19) % 3);
+    ctx.globalAlpha = 0.02 + (((i * 31) % 10) / 10) * 0.05;
+    ctx.fillRect(x, y, s, 1);
+  }
+  ctx.restore();
+
+  // Ground haze / dust band (gives depth and scale).
+  ctx.save();
+  const haze = ctx.createLinearGradient(0, 360, 0, 610);
+  haze.addColorStop(0, "rgba(255, 216, 102, 0)");
+  haze.addColorStop(0.35, "rgba(255, 216, 102, 0.08)");
+  haze.addColorStop(1, "rgba(12, 18, 35, 0.72)");
+  ctx.fillStyle = haze;
+  ctx.fillRect(0, 340, WIDTH, 280);
+  ctx.restore();
 
   const towerX = 654;
-  const towerY = 92;
+  // Taller tower so the base reads before we pan up.
+  const towerY = -40;
   const towerW = 182;
-  const towerH = 310;
-  const towerGradient = ctx.createLinearGradient(towerX, towerY, towerX + towerW, towerY + towerH);
-  towerGradient.addColorStop(0, "rgba(25, 70, 184, 0.88)");
-  towerGradient.addColorStop(0.62, "rgba(12, 18, 35, 0.86)");
-  towerGradient.addColorStop(1, "rgba(6, 10, 22, 0.94)");
-  ctx.fillStyle = towerGradient;
-  roundRect(towerX, towerY, towerW, towerH, 24);
+  const towerH = 440;
+  const towerRight = towerX + towerW;
+
+  // Cast shadow to ground haze (anchors tower in space).
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  const shadowGrad = ctx.createRadialGradient(
+    towerX + towerW / 2,
+    510,
+    40,
+    towerX + towerW / 2,
+    510,
+    340
+  );
+  shadowGrad.addColorStop(0, "rgba(0, 0, 0, 0.42)");
+  shadowGrad.addColorStop(0.5, "rgba(0, 0, 0, 0.18)");
+  shadowGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+  ctx.fillStyle = shadowGrad;
+  ctx.beginPath();
+  ctx.ellipse(towerX + towerW / 2, 510, 220, 76, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
+
+  // Tower base platform + railing silhouette (adds realism/scale).
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = "rgba(6, 10, 22, 0.95)";
+  roundRect(towerX - 64, towerY + towerH - 44, towerW + 128, 64, 22);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255, 216, 102, 0.12)";
+  roundRect(towerX - 58, towerY + towerH - 40, towerW + 116, 8, 8);
+  ctx.fill();
+  ctx.globalAlpha = 0.35;
+  ctx.strokeStyle = "rgba(255, 252, 245, 0.55)";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 10; i += 1) {
+    const rx = towerX - 44 + i * 30;
+    ctx.beginPath();
+    ctx.moveTo(rx, towerY + towerH - 32);
+    ctx.lineTo(rx, towerY + towerH - 8);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Tower crown (top cap + antenna), with warm rim light.
+  ctx.save();
+  const crownY = towerY - 26;
+  ctx.globalAlpha = 0.9;
+  const crownGrad = ctx.createLinearGradient(towerX, crownY, towerRight, crownY);
+  crownGrad.addColorStop(0, "rgba(36, 72, 170, 0.85)");
+  crownGrad.addColorStop(0.55, "rgba(10, 16, 40, 0.92)");
+  crownGrad.addColorStop(1, "rgba(6, 10, 22, 0.96)");
+  ctx.fillStyle = crownGrad;
+  roundRect(towerX + 18, crownY, towerW - 36, 34, 14);
+  ctx.fill();
+  ctx.globalAlpha = 0.55;
+  ctx.strokeStyle = `rgba(255, 216, 102, ${0.10 + towerGlow * 0.18})`;
+  ctx.lineWidth = 3;
+  roundRect(towerX + 18, crownY, towerW - 36, 34, 14);
+  ctx.stroke();
+  // Antenna / spire
+  const spx = towerX + towerW / 2;
+  ctx.globalAlpha = 0.8;
+  ctx.strokeStyle = "rgba(255, 252, 245, 0.22)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(spx, crownY);
+  ctx.lineTo(spx, crownY - 38);
+  ctx.stroke();
+  ctx.globalAlpha = 0.65;
+  ctx.fillStyle = `rgba(255, 216, 102, ${0.18 + towerGlow * 0.18})`;
+  ctx.beginPath();
+  ctx.arc(spx, crownY - 42, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Tower body (multi-layer: core, edge highlights, panel seams, windows).
+  const bodyGrad = ctx.createLinearGradient(towerX, towerY, towerX + towerW, towerY);
+  bodyGrad.addColorStop(0, "rgba(36, 72, 170, 0.92)");
+  bodyGrad.addColorStop(0.22, "rgba(18, 38, 92, 0.92)");
+  bodyGrad.addColorStop(0.55, "rgba(10, 16, 40, 0.94)");
+  bodyGrad.addColorStop(1, "rgba(6, 10, 22, 0.96)");
+  // Perspective taper (top slightly narrower) for realism.
+  const taper = 10;
+  const topInset = taper;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(towerX + topInset, towerY + 6);
+  ctx.lineTo(towerRight - topInset, towerY + 6);
+  ctx.lineTo(towerRight, towerY + towerH - 10);
+  ctx.lineTo(towerX, towerY + towerH - 10);
+  ctx.closePath();
+  ctx.clip();
+  ctx.fillStyle = bodyGrad;
+  roundRect(towerX, towerY, towerW, towerH, 26);
+  ctx.fill();
+  ctx.restore();
+
+  // Inner bevel / depth.
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  const innerGrad = ctx.createLinearGradient(towerX, towerY, towerX, towerY + towerH);
+  innerGrad.addColorStop(0, "rgba(255, 252, 245, 0.08)");
+  innerGrad.addColorStop(0.35, "rgba(255, 252, 245, 0.02)");
+  innerGrad.addColorStop(1, "rgba(0, 0, 0, 0.18)");
+  ctx.fillStyle = innerGrad;
+  roundRect(towerX + 10, towerY + 10, towerW - 20, towerH - 20, 20);
+  ctx.fill();
+  ctx.restore();
+
+  // Edge highlights (left cool, right warm rim).
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  ctx.lineWidth = 3;
+  const leftRim = ctx.createLinearGradient(towerX, towerY, towerX + 26, towerY);
+  leftRim.addColorStop(0, "rgba(180, 220, 255, 0.42)");
+  leftRim.addColorStop(1, "rgba(180, 220, 255, 0)");
+  ctx.strokeStyle = leftRim;
+  ctx.beginPath();
+  ctx.moveTo(towerX + 10, towerY + 18);
+  ctx.lineTo(towerX + 10, towerY + towerH - 18);
+  ctx.stroke();
+  const rightRim = ctx.createLinearGradient(towerRight - 26, towerY, towerRight, towerY);
+  rightRim.addColorStop(0, "rgba(255, 216, 102, 0)");
+  rightRim.addColorStop(1, `rgba(255, 216, 102, ${0.22 + towerGlow * 0.25})`);
+  ctx.strokeStyle = rightRim;
+  ctx.beginPath();
+  ctx.moveTo(towerRight - 10, towerY + 26);
+  ctx.lineTo(towerRight - 10, towerY + towerH - 26);
+  ctx.stroke();
+  ctx.restore();
+
+  // Panel seams (suggest realism).
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = "rgba(255, 252, 245, 1)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 10; i += 1) {
+    const yy = towerY + 54 + i * 36;
+    ctx.beginPath();
+    ctx.moveTo(towerX + 18, yy);
+    ctx.lineTo(towerRight - 18, yy);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Subtle material texture (micro speckle + faint vertical streaks).
+  ctx.save();
+  ctx.globalAlpha = 0.14;
+  ctx.beginPath();
+  roundRect(towerX + 10, towerY + 12, towerW - 20, towerH - 24, 20);
+  ctx.clip();
+  for (let i = 0; i < 140; i += 1) {
+    const x = towerX + 14 + ((i * 37) % (towerW - 28));
+    const y = towerY + 18 + ((i * 71) % (towerH - 40));
+    const r = 0.6 + ((i * 13) % 10) * 0.05;
+    const a = 0.06 + (((i * 19) % 10) / 10) * 0.10;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = i % 3 === 0 ? "rgba(255, 252, 245, 1)" : "rgba(0,0,0,1)";
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 0.08;
+  ctx.strokeStyle = "rgba(255, 252, 245, 1)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 7; i += 1) {
+    const sx = towerX + 22 + i * 22 + ((i % 2) * 4);
+    ctx.beginPath();
+    ctx.moveTo(sx, towerY + 30);
+    ctx.lineTo(sx, towerY + towerH - 44);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Windows: warm scattered lights (pixel-clean rectangles).
+  ctx.save();
+  const winFlicker = 0.75 + 0.25 * Math.sin(p * 12);
+  ctx.globalAlpha = 0.62 * winFlicker;
+  for (let r = 0; r < 9; r += 1) {
+    for (let c = 0; c < 3; c += 1) {
+      const seed = r * 17 + c * 41;
+      const on = (seed % 5) !== 0;
+      if (!on) continue;
+      const wx = towerX + 38 + c * 38;
+      const wy = towerY + 160 + r * 26;
+      const w = 16;
+      const h = 8;
+      const a = 0.10 + ((seed % 7) / 7) * 0.18 + towerGlow * 0.18;
+      ctx.fillStyle = `rgba(255, 216, 102, ${a})`;
+      roundRect(wx, wy, w, h, 3);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // Vertical structure ribs (parallax-friendly, subtle).
+  ctx.save();
+  ctx.globalAlpha = 0.16;
+  for (let i = 0; i < 3; i += 1) {
+    const rx = towerX + 28 + i * 50;
+    const ribGrad = ctx.createLinearGradient(rx - 6, towerY, rx + 6, towerY);
+    ribGrad.addColorStop(0, "rgba(255, 252, 245, 0)");
+    ribGrad.addColorStop(0.5, "rgba(255, 252, 245, 0.32)");
+    ribGrad.addColorStop(1, "rgba(255, 252, 245, 0)");
+    ctx.fillStyle = ribGrad;
+    ctx.fillRect(rx - 3, towerY + 24, 6, towerH - 72);
+  }
+  ctx.restore();
+
+  // Beat 3: hero stands at the base and looks up.
+  const baseHold = clamp((0.18 - p) / 0.18, 0, 1);
+  if (baseHold > 0.001) {
+    const x = towerX - 112;
+    const y = towerY + towerH - 36 + Math.sin(p * 8) * 2;
+    const r = 18;
+    ctx.save();
+    ctx.globalAlpha = 0.45 + baseHold * 0.55;
+    ctx.shadowColor = "rgba(0,0,0,0.25)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 2, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.55 + baseHold * 0.45;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.clip();
+    if (!drawCoverImage(art.face, x - r, y - r, r * 2, r * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
+      ctx.fillStyle = "#f4cfaa";
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.55 * baseHold;
+    ctx.fillStyle = "rgba(12, 18, 35, 0.72)";
+    roundRect(x - 92, y - 58, 184, 36, 14);
+    ctx.fill();
+    ctx.fillStyle = "#fff7e8";
+    ctx.font = "bold 14px Avenir Next, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("（仰望能量巨塔…）", x, y - 40);
+    ctx.textBaseline = "alphabetic";
+    ctx.restore();
+  }
+
+  // Beat 4: hero head climbing the tower (simple, readable motion).
+  const climb = easeOutCubic(clamp((p - 0.26) / 0.54, 0, 1));
+  let heroX = null;
+  let heroY = null;
+  if (climb > 0.001) {
+    // Continuous climb (avoid “steppy” motion).
+    const bob = Math.sin(p * Math.PI * 16) * 2.8;
+    const fromX = towerX - 28;
+    const toX = towerRight - 18;
+    const x = fromX + (toX - fromX) * (0.25 + climb * 0.75);
+    const y = (towerY + towerH - 36) - (towerH - 120) * climb + bob;
+    const r = 18;
+    heroX = x;
+    heroY = y;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.25)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 2, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.clip();
+    if (!drawCoverImage(art.face, x - r, y - r, r * 2, r * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
+      ctx.fillStyle = "#f4cfaa";
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    ctx.restore();
+
+    // Tiny “handhold” ticks on the tower edge for clarity.
+    ctx.save();
+    ctx.globalAlpha = 0.35 + climb * 0.25;
+    ctx.strokeStyle = "rgba(255, 247, 232, 0.65)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 7; i += 1) {
+      const yy = towerY + 70 + i * 38;
+      ctx.beginPath();
+      ctx.moveTo(towerRight - 10, yy);
+      ctx.lineTo(towerRight + 6, yy - 6);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   ctx.fillStyle = `rgba(255, 216, 102, ${0.12 + towerGlow * 0.38})`;
   ctx.beginPath();
-  ctx.arc(towerX + towerW / 2, towerY + 100, 86 + towerGlow * 34, 0, Math.PI * 2);
+  ctx.arc(towerX + towerW / 2, towerY + 120, 96 + towerGlow * 38, 0, Math.PI * 2);
   ctx.fill();
 
   // Make the cage window readable: remove the heavy white glass.
-  ctx.fillStyle = "rgba(255, 252, 245, 0.18)";
-  roundRect(towerX + 46, towerY + 64, 90, 156, 16);
+  const cageX = towerX + 46;
+  const cageY = towerY + 92;
+  const cageW = 90;
+  const cageH = 156;
+  const cageCX = cageX + cageW / 2;
+  const cageCY = cageY + cageH / 2;
+
+  // Interior shadow (gives depth behind bars/can).
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  const innerShadow = ctx.createRadialGradient(
+    cageX + cageW / 2,
+    cageY + cageH / 2 + 18,
+    10,
+    cageX + cageW / 2,
+    cageY + cageH / 2 + 18,
+    120
+  );
+  innerShadow.addColorStop(0, "rgba(0, 0, 0, 0)");
+  innerShadow.addColorStop(0.55, "rgba(0, 0, 0, 0.22)");
+  innerShadow.addColorStop(1, "rgba(0, 0, 0, 0.5)");
+  ctx.fillStyle = innerShadow;
+  roundRect(cageX + 6, cageY + 10, cageW - 12, cageH - 20, 12);
   ctx.fill();
-  ctx.strokeStyle = "rgba(255, 216, 102, 0.86)";
-  ctx.lineWidth = 4;
-  roundRect(towerX + 46, towerY + 64, 90, 156, 16);
-  ctx.stroke();
-  for (let i = 0; i < 4; i += 1) {
-    const bx = towerX + 56 + i * 20;
-    ctx.strokeStyle = `rgba(22, 32, 61, ${0.32 + towerGlow * 0.36})`;
-    ctx.lineWidth = 3;
+  ctx.restore();
+
+  // Cage glow bed (warm) behind bars.
+  ctx.save();
+  const cageGlow = ctx.createRadialGradient(
+    cageCX,
+    cageCY,
+    10,
+    cageCX,
+    cageCY,
+    140
+  );
+  cageGlow.addColorStop(0, `rgba(255, 216, 102, ${0.18 + towerGlow * 0.22})`);
+  cageGlow.addColorStop(0.55, `rgba(255, 216, 102, ${0.05 + towerGlow * 0.10})`);
+  cageGlow.addColorStop(1, "rgba(255, 216, 102, 0)");
+  ctx.fillStyle = cageGlow;
+  ctx.beginPath();
+  ctx.arc(cageCX, cageCY, 130, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Bloom pass (screen blend) for premium glow.
+  const bloom = clamp((p - 0.12) / 0.22, 0, 1) * (0.25 + towerGlow * 0.75);
+  if (bloom > 0.001) {
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = 0.18 * bloom;
+    const bloomGrad = ctx.createRadialGradient(cageCX, cageCY, 0, cageCX, cageCY, 220);
+    bloomGrad.addColorStop(0, "rgba(255, 252, 245, 0.95)");
+    bloomGrad.addColorStop(0.28, "rgba(255, 216, 102, 0.55)");
+    bloomGrad.addColorStop(0.7, "rgba(255, 168, 96, 0.12)");
+    bloomGrad.addColorStop(1, "rgba(255, 168, 96, 0)");
+    ctx.fillStyle = bloomGrad;
     ctx.beginPath();
-    ctx.moveTo(bx, towerY + 72);
-    ctx.lineTo(bx, towerY + 210);
-    ctx.stroke();
+    ctx.arc(cageCX, cageCY, 220, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
-  drawTransitionCan(art.product, towerX + towerW / 2, towerY + 144, 104, Math.sin(p * 8) * 0.04, "#f7fbff");
+  // Glass panel (subtle refraction).
+  ctx.save();
+  const glassGrad = ctx.createLinearGradient(cageX, cageY, cageX + cageW, cageY + cageH);
+  glassGrad.addColorStop(0, "rgba(255, 252, 245, 0.10)");
+  glassGrad.addColorStop(0.35, "rgba(180, 220, 255, 0.06)");
+  glassGrad.addColorStop(0.65, "rgba(255, 216, 102, 0.07)");
+  glassGrad.addColorStop(1, "rgba(255, 252, 245, 0.14)");
+  ctx.fillStyle = glassGrad;
+  roundRect(cageX, cageY, cageW, cageH, 16);
+  ctx.fill();
+  ctx.restore();
+
+  // Outer frame with thickness + shadow.
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.32)";
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 6;
+  ctx.fillStyle = "rgba(255, 216, 102, 0.12)";
+  roundRect(cageX - 3, cageY - 3, cageW + 6, cageH + 6, 18);
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = `rgba(255, 216, 102, ${0.72 + towerGlow * 0.20})`;
+  ctx.lineWidth = 4;
+  roundRect(cageX, cageY, cageW, cageH, 16);
+  ctx.stroke();
+  ctx.restore();
+
+  // Bars: thicker with inner highlight to read as metal.
+  const barCount = 5;
+  for (let i = 0; i < barCount; i += 1) {
+    const bx = cageX + 14 + i * 15;
+    const by1 = cageY + 10;
+    const by2 = cageY + cageH - 10;
+    const metal = ctx.createLinearGradient(bx - 3, 0, bx + 3, 0);
+    metal.addColorStop(0, `rgba(10, 16, 40, ${0.55 + towerGlow * 0.10})`);
+    metal.addColorStop(0.45, `rgba(255, 252, 245, ${0.06 + towerGlow * 0.06})`);
+    metal.addColorStop(1, `rgba(10, 16, 40, ${0.62 + towerGlow * 0.12})`);
+    ctx.strokeStyle = metal;
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(bx, by1);
+    ctx.lineTo(bx, by2);
+    ctx.stroke();
+
+    // Specular tick highlight (feels like metal catching light).
+    ctx.save();
+    ctx.globalAlpha = (0.10 + towerGlow * 0.12) * (0.6 + 0.4 * Math.sin(p * 10 + i));
+    ctx.strokeStyle = "rgba(255, 252, 245, 0.9)";
+    ctx.lineWidth = 1.6;
+    const hy = cageY + 32 + ((i * 23) % 80);
+    ctx.beginPath();
+    ctx.moveTo(bx - 2, hy);
+    ctx.lineTo(bx + 3, hy - 6);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.lineCap = "butt";
+
+  // Ambient occlusion at frame edges (adds depth).
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  const ao = ctx.createRadialGradient(
+    cageX + cageW / 2,
+    cageY + cageH / 2,
+    30,
+    cageX + cageW / 2,
+    cageY + cageH / 2,
+    120
+  );
+  ao.addColorStop(0, "rgba(0,0,0,0)");
+  ao.addColorStop(0.55, "rgba(0,0,0,0.10)");
+  ao.addColorStop(1, "rgba(0,0,0,0.38)");
+  ctx.fillStyle = ao;
+  roundRect(cageX, cageY, cageW, cageH, 16);
+  ctx.fill();
+  ctx.restore();
+
+  // Glass streak highlight (animated sweep for polish).
+  const sweep = clamp((p - 0.18) / 0.5, 0, 1);
+  if (sweep > 0.001) {
+    const sx = cageX - 30 + sweep * (cageW + 80);
+    ctx.save();
+    ctx.globalAlpha = (0.08 + towerGlow * 0.06) * (0.35 + 0.65 * Math.sin(p * Math.PI));
+    ctx.fillStyle = "rgba(255, 252, 245, 1)";
+    ctx.beginPath();
+    ctx.moveTo(sx, cageY + 8);
+    ctx.lineTo(sx + 26, cageY + 8);
+    ctx.lineTo(sx - 12, cageY + cageH - 8);
+    ctx.lineTo(sx - 38, cageY + cageH - 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Glass dome highlight (Beat 3 reveal target).
+  const domeReveal = clamp((p - 0.12) / 0.18, 0, 1);
+  if (domeReveal > 0.001) {
+    const cx = towerX + towerW / 2;
+    const cy = towerY + 170;
+    ctx.save();
+    ctx.globalAlpha = 0.22 + domeReveal * 0.30;
+    const dome = ctx.createRadialGradient(cx, cy, 10, cx, cy, 120);
+    dome.addColorStop(0, `rgba(255, 216, 102, ${0.38 + towerGlow * 0.18})`);
+    dome.addColorStop(0.48, `rgba(255, 216, 102, ${0.12 + towerGlow * 0.12})`);
+    dome.addColorStop(1, "rgba(255, 216, 102, 0)");
+    ctx.fillStyle = dome;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 120, 0, Math.PI * 2);
+    ctx.fill();
+    // Specular arcs (glass realism).
+    ctx.globalAlpha = 0.28 + domeReveal * 0.45;
+    ctx.strokeStyle = "rgba(255, 252, 245, 0.62)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(cx - 10, cy - 10, 74, 56, 0.08, Math.PI * 1.12, Math.PI * 1.92);
+    ctx.stroke();
+    ctx.globalAlpha = 0.18 + domeReveal * 0.28;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.ellipse(cx + 6, cy + 8, 64, 46, 0.08, Math.PI * 0.92, Math.PI * 1.58);
+    ctx.stroke();
+    ctx.restore();
+
+    // Refraction ring (adds “real glass” feel).
+    ctx.save();
+    ctx.globalAlpha = (0.10 + towerGlow * 0.12) * domeReveal;
+    const ring = ctx.createRadialGradient(cx, cy, 30, cx, cy, 96);
+    ring.addColorStop(0, "rgba(255, 252, 245, 0)");
+    ring.addColorStop(0.55, "rgba(180, 220, 255, 0.14)");
+    ring.addColorStop(0.75, "rgba(255, 216, 102, 0.10)");
+    ring.addColorStop(1, "rgba(255, 252, 245, 0)");
+    ctx.strokeStyle = ring;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 78, 60, 0.08, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Glass thickness edge + moving light sweep (final polish).
+    ctx.save();
+    ctx.globalAlpha = (0.14 + towerGlow * 0.14) * domeReveal;
+    ctx.strokeStyle = "rgba(255, 252, 245, 0.45)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 84, 64, 0.08, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = (0.08 + towerGlow * 0.10) * domeReveal;
+    ctx.strokeStyle = "rgba(90, 180, 255, 0.55)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(cx + 2, cy + 2, 80, 60, 0.08, 0, Math.PI * 2);
+    ctx.stroke();
+    const sweepP = clamp((p - 0.14) / 0.5, 0, 1);
+    const sweepX = cx - 120 + sweepP * 240;
+    ctx.globalAlpha = (0.09 + towerGlow * 0.10) * domeReveal;
+    ctx.fillStyle = "rgba(255, 252, 245, 1)";
+    ctx.beginPath();
+    ctx.moveTo(sweepX - 22, cy - 70);
+    ctx.lineTo(sweepX + 14, cy - 70);
+    ctx.lineTo(sweepX + 56, cy + 70);
+    ctx.lineTo(sweepX + 20, cy + 70);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Volumetric beam + gold dust around the cage (premium look).
+  const beam = clamp((p - 0.14) / 0.22, 0, 1);
+  if (beam > 0.001) {
+    const cx = towerX + towerW / 2;
+    const topY = cageY - 26;
+    const bottomY = cageY + cageH + 70;
+    ctx.save();
+    ctx.globalAlpha = (0.10 + towerGlow * 0.10) * beam;
+    const beamGrad = ctx.createLinearGradient(cx, topY, cx, bottomY);
+    beamGrad.addColorStop(0, "rgba(255, 216, 102, 0)");
+    beamGrad.addColorStop(0.28, "rgba(255, 216, 102, 0.22)");
+    beamGrad.addColorStop(0.7, "rgba(255, 216, 102, 0.08)");
+    beamGrad.addColorStop(1, "rgba(255, 216, 102, 0)");
+    ctx.fillStyle = beamGrad;
+    ctx.beginPath();
+    ctx.moveTo(cx - 70, topY);
+    ctx.lineTo(cx + 70, topY);
+    ctx.lineTo(cx + 120, bottomY);
+    ctx.lineTo(cx - 120, bottomY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    const dustAlpha = (0.18 + towerGlow * 0.22) * beam;
+    for (let i = 0; i < 24; i += 1) {
+      const ang = p * 7 + i * 0.9;
+      const rr = 22 + ((i * 19) % 30);
+      const dx = cx + Math.cos(ang) * rr + (i % 3) * 8;
+      // Drift upwards for a “holy dust” feel.
+      const up = (p * 120 + i * 9) % 120;
+      const dy =
+        cageY +
+        cageH / 2 +
+        Math.sin(ang * 1.12) * rr * 0.8 +
+        ((i * 23) % 60) -
+        30 -
+        up * (0.55 + towerGlow * 0.15);
+      ctx.globalAlpha = dustAlpha * (0.35 + ((i * 37) % 10) / 10);
+      ctx.fillStyle = "rgba(255, 216, 102, 1)";
+      ctx.beginPath();
+      ctx.arc(dx, dy, 1.2 + ((i * 13) % 10) * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Rescue target in the cage (the only “product” shown here).
+  const canX = towerX + towerW / 2;
+  const canY = towerY + 170;
+  // Shadow to anchor the can inside the cage.
+  ctx.save();
+  ctx.globalAlpha = 0.35 + towerGlow * 0.25;
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.beginPath();
+  ctx.ellipse(canX + 2, canY + 44, 36, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  drawTransitionCan(art.product, canX, canY, 104, Math.sin(p * 8) * 0.04, "#f7fbff");
+  // Warm rim light on the can (feels like the dome is emitting light).
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = (0.10 + towerGlow * 0.12) * domeReveal;
+  const rim = ctx.createRadialGradient(canX - 10, canY - 10, 10, canX, canY, 90);
+  rim.addColorStop(0, "rgba(255, 252, 245, 0.9)");
+  rim.addColorStop(0.35, "rgba(255, 216, 102, 0.35)");
+  rim.addColorStop(1, "rgba(255, 216, 102, 0)");
+  ctx.fillStyle = rim;
+  ctx.beginPath();
+  ctx.arc(canX, canY, 90, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Lens flare hints around the golden cage glow (very subtle, premium feel).
+  const flare = clamp((p - 0.16) / 0.18, 0, 1) * (0.25 + towerGlow * 0.75);
+  if (flare > 0.001) {
+    const fx = cageX + cageW / 2;
+    const fy = cageY + cageH / 2 - 8;
+    ctx.save();
+    ctx.globalAlpha = 0.12 * flare;
+    ctx.strokeStyle = "rgba(255, 252, 245, 0.8)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(fx - 120, fy);
+    ctx.lineTo(fx + 120, fy);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(fx, fy - 90);
+    ctx.lineTo(fx, fy + 90);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Pan-up motion lines (cinematic camera feel; only during fast pan window).
+  if (panSpeed > 0.001) {
+    ctx.save();
+    ctx.globalAlpha = 0.22 * panSpeed;
+    ctx.strokeStyle = "rgba(255, 252, 245, 0.5)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 14; i += 1) {
+      const x = 40 + i * 68 + ((i % 3) - 1) * 8;
+      const y = -40 + ((i * 97) % 520);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y + 70 + (i % 4) * 16);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Final vignette + subtle color separation glow (post-process feel).
+  ctx.save();
+  const post = clamp((p - 0.02) / 0.18, 0, 1);
+  ctx.globalAlpha = 0.55 * post;
+  const vig = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2 - 40, 120, WIDTH / 2, HEIGHT / 2, 820);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  vig.addColorStop(0.55, "rgba(0,0,0,0.18)");
+  vig.addColorStop(1, "rgba(0,0,0,0.72)");
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, -120, WIDTH, HEIGHT + 240);
+  ctx.restore();
+
+  // Subtle chroma-ish halo around the cage glow.
+  const chroma = clamp((p - 0.16) / 0.18, 0, 1) * (0.35 + towerGlow * 0.65);
+  if (chroma > 0.001) {
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = 0.06 * chroma;
+    ctx.fillStyle = "rgba(90, 180, 255, 1)";
+    ctx.beginPath();
+    ctx.arc(cageX + cageW / 2 - 6, cageY + cageH / 2 - 2, 170, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.05 * chroma;
+    ctx.fillStyle = "rgba(255, 148, 96, 1)";
+    ctx.beginPath();
+    ctx.arc(cageX + cageW / 2 + 6, cageY + cageH / 2 + 2, 170, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Beat 5: exhausted line after reaching the top.
+  const pant = clamp((p - 0.86) / 0.12, 0, 1);
+  if (pant > 0.001 && heroX != null && heroY != null) {
+    ctx.save();
+    ctx.globalAlpha = pant;
+    const bubbleW = 204;
+    const bubbleH = 44;
+    const bubbleX = heroX - bubbleW / 2;
+    const bubbleY = heroY - 74;
+
+    // Speech bubble body.
+    ctx.shadowColor = "rgba(0,0,0,0.28)";
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 6;
+    ctx.fillStyle = "rgba(255, 252, 246, 0.96)";
+    roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 18);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+
+    // Tail pointing to the actual hero head.
+    ctx.fillStyle = "rgba(255, 252, 246, 0.96)";
+    ctx.beginPath();
+    ctx.moveTo(heroX - 10, bubbleY + bubbleH - 2);
+    ctx.lineTo(heroX + 8, bubbleY + bubbleH - 2);
+    ctx.lineTo(heroX - 2, heroY - 24);
+    ctx.closePath();
+    ctx.fill();
+
+    // Outline (subtle).
+    ctx.strokeStyle = "rgba(25, 70, 184, 0.18)";
+    ctx.lineWidth = 2;
+    roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 18);
+    ctx.stroke();
+
+    // Text.
+    ctx.fillStyle = "#16203d";
+    ctx.font = "bold 14px Avenir Next, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("哈…哈…終於爬上來了…", heroX, bubbleY + bubbleH / 2 + 1);
+    ctx.textBaseline = "alphabetic";
+    ctx.restore();
+  }
 
   ctx.fillStyle = "#fff7e8";
   ctx.font = "bold 16px Avenir Next, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("能量巨塔", towerX + towerW / 2, towerY + 260);
+  ctx.fillText("能量巨塔", towerX + towerW / 2, towerY + 340);
   ctx.fillStyle = "rgba(255, 247, 232, 0.72)";
   ctx.font = "12px Avenir Next, sans-serif";
-  ctx.fillText("康貝特200p封印處", towerX + towerW / 2, towerY + 284);
+  ctx.fillText("康貝特200p封印處", towerX + towerW / 2, towerY + 364);
 
   const sparkCount = 7;
   for (let i = 0; i < sparkCount; i += 1) {
@@ -2286,6 +3099,9 @@ function createStageTwoPhysics(stageTwo) {
             physics.fuseSpeed = collisionSpeed;
             stageTwo.bestImpact = Math.max(stageTwo.bestImpact, collisionSpeed);
             stageTwo.lastImpactTimer = 24;
+            // Lock the cinematic outro camera to the actual impact point (not the sling after reset).
+            stageTwo.lastImpactX = projectileBody.position.x;
+            stageTwo.lastImpactY = projectileBody.position.y;
             spawnStageTwoFlash(
               projectileBody.position.x,
               projectileBody.position.y,
@@ -2942,6 +3758,130 @@ function updateStageTwo(frameScale) {
     return;
   }
 
+  if (game.state === "stage2Outro") {
+    const outro = game.stageTwoOutro;
+    if (!outro) {
+      game.state = "stage2Playing";
+      return;
+    }
+
+    outro.timer += frameScale;
+    const t = outro.timer;
+
+    if (!outro.sfxPlayed) {
+      outro.sfxPlayed = true;
+      soundFx.glassHit?.();
+      soundFx.canCollapse?.();
+      triggerStageTwoShake(8);
+      spawnStageTwoFlash(outro.impactX, outro.impactY, 42);
+      for (let i = 0; i < 22; i += 1) {
+        spawnStageTwoDebris(outro.impactX, outro.impactY, "#cfd6de", 1, {
+          speed: 3 + Math.random() * 6,
+          spread: Math.PI * 2,
+          drag: 0.9,
+          angle: 0,
+          gravity: 0.06,
+        });
+      }
+      for (let i = 0; i < 14; i += 1) {
+        spawnStageTwoDebris(outro.impactX, outro.impactY, "#ffe6a3", 1, {
+          speed: 2 + Math.random() * 5,
+          spread: Math.PI * 2,
+          drag: 0.9,
+          angle: 0,
+          gravity: 0.05,
+        });
+      }
+    }
+
+    // Glass shatter sound at t=15
+    if (t >= 15 && t < 17 && !outro.glassPlayed) {
+      outro.glassPlayed = true;
+      soundFx.glassHit?.();
+      spawnStageTwoFlash(outro.impactX + 8, outro.impactY - 4, 36);
+    }
+
+    // Collapse rumble sound at t=40
+    if (t >= 40 && t < 44 && !outro.collapsePlayed) {
+      outro.collapsePlayed = true;
+      soundFx.canCollapse?.();
+      triggerStageTwoShake(6);
+      for (let i = 0; i < 16; i += 1) {
+        spawnStageTwoDebris(outro.impactX, outro.impactY, "#9aa6bd", 1, {
+          speed: 2 + Math.random() * 4,
+          spread: Math.PI * 2,
+          drag: 0.9,
+          angle: 0,
+          gravity: 0.06,
+        });
+      }
+    }
+
+    // Slow-motion curve: deep freeze → gradual ramp
+    const slowmo = t < 100 ? 0.10 : t < 260 ? 0.18 : t < 420 ? 0.32 : t < 560 ? 0.55 : 0.75;
+    outro.slowmo = slowmo;
+    if (stageTwo.physics) {
+      stageTwo.physics.step(frameScale * slowmo * (1000 / 60));
+      stageTwo.physics.processImpacts();
+      stageTwo.physics.syncToGameObjects();
+      stageTwo.physics.tickFuse(frameScale * slowmo);
+      stageTwo.physics.checkProjectileSpent(frameScale * slowmo);
+    }
+
+    // Multi-pulse explosion bursts
+    if (t >= 10 && t < 12) {
+      spawnStageTwoFlash(outro.impactX, outro.impactY, 56);
+      triggerStageTwoShake(9);
+    }
+    if (t >= 28 && t < 30) {
+      spawnStageTwoFlash(outro.impactX + 12, outro.impactY - 8, 44);
+      triggerStageTwoShake(7);
+      for (let i = 0; i < 12; i += 1) {
+        spawnStageTwoDebris(outro.impactX, outro.impactY, "#ffe6a3", 1, {
+          speed: 3.5 + Math.random() * 4.5,
+          spread: Math.PI * 2,
+          drag: 0.9,
+          angle: 0,
+          gravity: 0.05,
+        });
+      }
+    }
+    if (t >= 46 && t < 48) {
+      spawnStageTwoFlash(outro.impactX - 10, outro.impactY + 6, 38);
+      triggerStageTwoShake(6);
+      for (let i = 0; i < 14; i += 1) {
+        spawnStageTwoDebris(outro.impactX, outro.impactY, "#cfd6de", 1, {
+          speed: 3 + Math.random() * 5.2,
+          spread: Math.PI * 2,
+          drag: 0.9,
+          angle: 0,
+          gravity: 0.06,
+        });
+      }
+    }
+
+    // Continuous debris during collapse phase
+    if (t < 320 && Math.random() < 0.55) {
+      const x = outro.impactX + (Math.random() - 0.5) * 200;
+      const y = outro.impactY + (Math.random() - 0.5) * 110;
+      spawnStageTwoDebris(x, y, "rgba(210, 218, 230, 0.9)", 1, {
+        speed: 1.5 + Math.random() * 2.6,
+        spread: Math.PI * 2,
+        drag: 0.92,
+        angle: 0,
+        gravity: 0.04,
+      });
+    }
+
+    updateStageTwoFx(frameScale);
+
+    if (t >= STAGE_TWO_OUTRO_TOTAL_FRAMES) {
+      game.stageTwoOutro = null;
+      enterBossStageFromSlingshot();
+    }
+    return;
+  }
+
   const projectile = stageTwo.projectile;
 
   if (stageTwo.lastImpactTimer > 0) {
@@ -3055,7 +3995,7 @@ function updateStageTwo(frameScale) {
     if (!game.stageTwoClearHandled) {
       game.stageTwoClearHandled = true;
       if (SLINGSHOT_FIRST_ORDER) {
-        startSceneTransition(() => enterBossStageFromSlingshot(), SCENE_TR_SLINGSHOT_TO_BOSS);
+        startStageTwoToBossCutscene(stageTwo);
       } else {
         startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
       }
@@ -3339,7 +4279,7 @@ function finishPrologueIntro() {
   }
   game.state = "running";
   game.overlayTimer = 84;
-  game.overlayText = "往右攻頂能量巨塔，準備面對提神聯盟";
+  game.overlayText = "往右攻頂能量巨塔，準備面對兩大霸主";
   soundFx.start();
 }
 
