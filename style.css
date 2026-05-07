@@ -124,7 +124,7 @@ body {
 canvas {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   aspect-ratio: var(--game-aspect);
   border-radius: 22px;
   background: linear-gradient(180deg, #9ddcff 0%, #ffdfaa 100%);
@@ -429,6 +429,9 @@ canvas {
 
   canvas {
     border-radius: 10px;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: unset;
   }
 
   .video-overlay {
