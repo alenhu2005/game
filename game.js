@@ -3,7 +3,7 @@ const ctx = canvas.getContext("2d");
 
 const WIDTH = 960;
 const HEIGHT = 540;
-const BUILD_ID = "20260507-boss-only";
+const BUILD_ID = "20260507-mobile-touch";
 
 function configureCanvas() {
   const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
@@ -34,6 +34,8 @@ const timerPill = document.getElementById("timerPill");
 const restartButton = document.getElementById("restartButton");
 const skipButton = document.getElementById("skipButton");
 const killBossButton = document.getElementById("killBossButton");
+const touchControlsEl = document.getElementById("touchControls");
+let touchChromeWasVisible = false;
 const cutsceneVideoOverlay = document.getElementById("cutsceneVideoOverlay");
 const cutsceneVideoStage = document.querySelector(".video-overlay__stage");
 const cutsceneVideo = document.getElementById("cutsceneVideo");
@@ -449,6 +451,10 @@ const input = {
   jumpPressed: false,
   dash: false,
   dashPressed: false,
+  touchLeft: false,
+  touchRight: false,
+  touchDash: false,
+  touchDashPressed: false,
 };
 
 const audio = {
@@ -3013,6 +3019,46 @@ function clearInputState() {
   input.jumpPressed = false;
   input.dash = false;
   input.dashPressed = false;
+  input.touchLeft = false;
+  input.touchRight = false;
+  input.touchDash = false;
+  input.touchDashPressed = false;
+  clearTouchPadPressedUi();
+}
+
+function clearTouchPadPressedUi() {
+  if (!touchControlsEl) return;
+  touchControlsEl.querySelectorAll(".touch-pad--pressed").forEach((el) => {
+    el.classList.remove("touch-pad--pressed");
+  });
+}
+
+function shouldShowTouchChrome() {
+  return (
+    window.matchMedia("(max-width: 820px)").matches ||
+    window.matchMedia("(pointer: coarse)").matches
+  );
+}
+
+function syncMobileControlsVisibility() {
+  if (!touchControlsEl) return;
+  const chrome = shouldShowTouchChrome();
+  const visible =
+    chrome &&
+    game.stage === 1 &&
+    !game.bossCutscene?.active &&
+    (game.state === "running" || game.state === "intro" || game.state === "ad");
+  touchControlsEl.classList.toggle("touch-controls--visible", visible);
+  touchControlsEl.setAttribute("aria-hidden", visible ? "false" : "true");
+  if (touchChromeWasVisible && !visible) {
+    input.touchLeft = false;
+    input.touchRight = false;
+    input.touchDash = false;
+    input.touchDashPressed = false;
+    clearTouchPadPressedUi();
+    setJumpKey(false);
+  }
+  touchChromeWasVisible = visible;
 }
 
 function togglePause() {
@@ -3396,17 +3442,20 @@ function updatePlayer(frameScale) {
     player.runDustTimer -= frameScale;
   }
 
+  const moveLeft = input.left || input.touchLeft;
+  const moveRight = input.right || input.touchRight;
+
   if (
-    input.dashPressed &&
+    (input.dashPressed || input.touchDashPressed) &&
     !dashing &&
     player.dashCooldown <= 0 &&
-    (input.left || input.right || Math.abs(player.vx) > 1)
+    (moveLeft || moveRight || Math.abs(player.vx) > 1)
   ) {
     player.dashTimer = PLAYER_DASH.duration;
     player.dashCooldown = PLAYER_DASH.cooldown;
     player.invincible = Math.max(player.invincible, PLAYER_DASH.invincibility);
     soundFx.dash();
-    const dir = input.left ? -1 : input.right ? 1 : Math.sign(player.vx) || player.facing;
+    const dir = moveLeft ? -1 : moveRight ? 1 : Math.sign(player.vx) || player.facing;
     player.facing = dir;
     player.vx = dir * 9.4;
     triggerStageOneShake(2.4);
@@ -3434,15 +3483,15 @@ function updatePlayer(frameScale) {
     ? baseMax * (player.onGround ? PLAYER_DASH.speedBoost : PLAYER_DASH.airSpeedBoost)
     : baseMax;
 
-  if (input.left) {
+  if (moveLeft) {
     player.vx -= moveAcceleration * frameScale;
     player.facing = -1;
   }
-  if (input.right) {
+  if (moveRight) {
     player.vx += moveAcceleration * frameScale;
     player.facing = 1;
   }
-  if (!input.left && !input.right && !dashing) {
+  if (!moveLeft && !moveRight && !dashing) {
     player.vx *= player.onGround ? 0.79 : 0.94;
   }
 
@@ -5692,7 +5741,10 @@ function step(frameScale) {
     return;
   }
 
-  if (game.state === "intro" && (input.left || input.right || input.jumpPressed)) {
+  if (
+    game.state === "intro" &&
+    (input.left || input.right || input.touchLeft || input.touchRight || input.jumpPressed)
+  ) {
     startStageOneRun();
   }
 
@@ -8513,9 +8565,11 @@ function loop(timestamp) {
   step(frameScale);
   updateBackgroundMusic();
   render();
+  syncMobileControlsVisibility();
 
   input.jumpPressed = false;
   input.dashPressed = false;
+  input.touchDashPressed = false;
   requestAnimationFrame(loop);
 }
 
@@ -8857,7 +8911,11 @@ configureCanvas();
 window.addEventListener("resize", () => {
   configureCanvas();
   layoutCutsceneVideo();
+  syncMobileControlsVisibility();
 });
+try {
+  window.matchMedia("(max-width: 820px)").addEventListener("change", syncMobileControlsVisibility);
+} catch (_) {}
 canvas.addEventListener("pointerdown", (event) => {
   unlockAudio();
   const point = getCanvasPoint(event);
@@ -8931,5 +8989,84 @@ window.addEventListener("pointercancel", (event) => {
   }
 });
 window.addEventListener("pointerdown", unlockAudio);
+
+function bindTouchHold(button, onPress, onRelease) {
+  if (!button) return;
+  let armed = false;
+  const press = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    armed = true;
+    unlockAudio();
+    onPress();
+    button.classList.add("touch-pad--pressed");
+    try {
+      button.setPointerCapture(e.pointerId);
+    } catch (_) {}
+  };
+  const release = () => {
+    if (!armed) return;
+    armed = false;
+    onRelease();
+    button.classList.remove("touch-pad--pressed");
+  };
+  button.addEventListener("pointerdown", press);
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("lostpointercapture", release);
+}
+
+function setupMobileTouchControls() {
+  if (!touchControlsEl) return;
+  touchControlsEl.querySelectorAll("[data-touch]").forEach((btn) => {
+    const kind = btn.dataset.touch;
+    if (kind === "left") {
+      bindTouchHold(
+        btn,
+        () => {
+          input.touchLeft = true;
+        },
+        () => {
+          input.touchLeft = false;
+        }
+      );
+    } else if (kind === "right") {
+      bindTouchHold(
+        btn,
+        () => {
+          input.touchRight = true;
+        },
+        () => {
+          input.touchRight = false;
+        }
+      );
+    } else if (kind === "jump") {
+      bindTouchHold(
+        btn,
+        () => {
+          setJumpKey(true);
+        },
+        () => {
+          setJumpKey(false);
+        }
+      );
+    } else if (kind === "dash") {
+      bindTouchHold(
+        btn,
+        () => {
+          if (!input.dash && !input.touchDash) {
+            input.touchDashPressed = true;
+          }
+          input.touchDash = true;
+        },
+        () => {
+          input.touchDash = false;
+        }
+      );
+    }
+  });
+}
+
+setupMobileTouchControls();
 updateHud();
 requestAnimationFrame(loop);
