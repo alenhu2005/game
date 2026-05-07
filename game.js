@@ -8701,12 +8701,16 @@ function setJumpKey(active) {
   input.jump = active;
 }
 
-function getCanvasPoint(event) {
+function getCanvasPointFromClient(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   return {
-    x: ((event.clientX - rect.left) / rect.width) * WIDTH,
-    y: ((event.clientY - rect.top) / rect.height) * HEIGHT,
+    x: ((clientX - rect.left) / rect.width) * WIDTH,
+    y: ((clientY - rect.top) / rect.height) * HEIGHT,
   };
+}
+
+function getCanvasPoint(event) {
+  return getCanvasPointFromClient(event.clientX, event.clientY);
 }
 
 function updateStageTwoDrag(point) {
@@ -9141,6 +9145,56 @@ window.addEventListener("pointercancel", (event) => {
   }
 });
 window.addEventListener("pointerdown", unlockAudio);
+
+// Fallback for older iOS Safari / webviews where Pointer Events can be flaky.
+// Keep this minimal: just forward primary touch to the same stage-two drag logic.
+let stageTwoTouchActive = false;
+canvas.addEventListener(
+  "touchstart",
+  (event) => {
+    const touch = event.changedTouches && event.changedTouches[0];
+    if (!touch) return;
+    unlockAudio();
+    stageTwoTouchActive = beginStageTwoDrag(getCanvasPointFromClient(touch.clientX, touch.clientY));
+    if (stageTwoTouchActive) {
+      event.preventDefault();
+    }
+  },
+  { passive: false }
+);
+canvas.addEventListener(
+  "touchmove",
+  (event) => {
+    if (!stageTwoTouchActive || !game.stageTwo || !game.stageTwo.dragging) {
+      return;
+    }
+    const touch = event.changedTouches && event.changedTouches[0];
+    if (!touch) return;
+    updateStageTwoDrag(getCanvasPointFromClient(touch.clientX, touch.clientY));
+    event.preventDefault();
+  },
+  { passive: false }
+);
+canvas.addEventListener(
+  "touchend",
+  (event) => {
+    if (!stageTwoTouchActive) return;
+    stageTwoTouchActive = false;
+    releaseStageTwoDrag();
+    event.preventDefault();
+  },
+  { passive: false }
+);
+canvas.addEventListener(
+  "touchcancel",
+  (event) => {
+    if (!stageTwoTouchActive) return;
+    stageTwoTouchActive = false;
+    releaseStageTwoDrag();
+    event.preventDefault();
+  },
+  { passive: false }
+);
 
 function bindTouchHold(button, onPress, onRelease) {
   if (!button) return;
