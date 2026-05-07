@@ -3,7 +3,7 @@ const ctx = canvas.getContext("2d");
 
 const WIDTH = 960;
 const HEIGHT = 540;
-const BUILD_ID = "20260507-no-zoom";
+const BUILD_ID = "20260507-fs-btn-visible";
 
 function configureCanvas() {
   const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
@@ -8976,35 +8976,39 @@ function getFullscreenElement() {
   );
 }
 
-function gameShellIsFullscreen() {
-  return !!gameShellEl && getFullscreenElement() === gameShellEl;
-}
-
-function gameFullscreenApiSupported() {
-  if (!gameShellEl) return false;
+function fullscreenEnterSupported() {
+  const shell = gameShellEl;
+  const root = document.documentElement;
   return !!(
-    gameShellEl.requestFullscreen ||
-    gameShellEl.webkitRequestFullscreen ||
-    gameShellEl.msRequestFullscreen
+    (shell &&
+      (shell.requestFullscreen ||
+        shell.webkitRequestFullscreen ||
+        shell.msRequestFullscreen)) ||
+    root.requestFullscreen ||
+    root.webkitRequestFullscreen ||
+    root.msRequestFullscreen
   );
 }
 
 function syncFullscreenButtonUI() {
   if (!fullscreenButton || !gameShellEl) return;
-  const supported = gameFullscreenApiSupported();
-  fullscreenButton.toggleAttribute("hidden", !supported);
-  if (!supported) return;
-  const active = gameShellIsFullscreen();
+  fullscreenButton.removeAttribute("hidden");
+  const active = !!getFullscreenElement();
   fullscreenButton.textContent = active ? "退出全螢幕" : "全螢幕";
   fullscreenButton.setAttribute("aria-pressed", active ? "true" : "false");
   fullscreenButton.setAttribute("aria-label", active ? "退出全螢幕" : "進入全螢幕");
 }
 
 async function toggleGameFullscreen() {
-  if (!gameShellEl || !gameFullscreenApiSupported()) return;
+  if (!gameShellEl) return;
   unlockAudio();
+  if (!fullscreenEnterSupported()) {
+    game.overlayTimer = 120;
+    game.overlayText = "此瀏覽器不支援網頁全螢幕；請用電腦開啟，或使用選單「加到主畫面」後以橫向遊玩。";
+    return;
+  }
   try {
-    if (gameShellIsFullscreen()) {
+    if (getFullscreenElement()) {
       if (document.exitFullscreen) await document.exitFullscreen();
       else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
       else if (document.msExitFullscreen) document.msExitFullscreen();
@@ -9014,8 +9018,17 @@ async function toggleGameFullscreen() {
       gameShellEl.webkitRequestFullscreen();
     } else if (gameShellEl.msRequestFullscreen) {
       gameShellEl.msRequestFullscreen();
+    } else if (document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen();
+    } else if (document.documentElement.webkitRequestFullscreen) {
+      document.documentElement.webkitRequestFullscreen();
+    } else if (document.documentElement.msRequestFullscreen) {
+      document.documentElement.msRequestFullscreen();
     }
-  } catch (_) {}
+  } catch (_) {
+    game.overlayTimer = 100;
+    game.overlayText = "無法進入全螢幕（可能被 iframe 或瀏覽器阻擋）。";
+  }
   requestAnimationFrame(() => {
     configureCanvas();
     layoutCutsceneVideo();
