@@ -1712,6 +1712,13 @@ const game = {
   endingScene: null,
 };
 
+// If we want slingshot-first, skip the "two stages" intro panel entirely and
+// drop the player straight into the slingshot stage intro screen.
+if (SLINGSHOT_FIRST_ORDER) {
+  enterStageTwo();
+  game.overlayTimer = 0;
+}
+
 function enterWonResults() {
   if (game.stageTwo) {
     game.stage = 2;
@@ -3286,6 +3293,11 @@ function resetRun() {
   game.bossWarningShown = false;
   game.bossShockwaveHintShown = false;
   game.endingScene = null;
+
+  if (SLINGSHOT_FIRST_ORDER) {
+    enterStageTwo();
+    game.overlayTimer = 0;
+  }
 }
 
 function respawnPlayer() {
