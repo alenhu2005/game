@@ -2312,6 +2312,18 @@ function setJumpKey(active) {
 
 function getCanvasPointFromClient(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
+  const portraitRotated =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(orientation: portrait) and (max-width: 926px)").matches;
+
+  if (portraitRotated) {
+    return {
+      x: ((clientY - rect.top) / rect.height) * WIDTH,
+      y: (1 - (clientX - rect.left) / rect.width) * HEIGHT,
+    };
+  }
+
   return {
     x: ((clientX - rect.left) / rect.width) * WIDTH,
     y: ((clientY - rect.top) / rect.height) * HEIGHT,
