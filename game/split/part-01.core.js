@@ -101,11 +101,11 @@ const BOSS_INTRO_BOUNCE_DURATION = 17;
 const BOSS_INTRO_VIDEO_PHASE = "playerVideo";
 const BOSS_PHASE_SHIFT_CUTSCENE_FRAMES = 210;
 const BOSS_VICTORY_CUTSCENE_FRAMES = 420;
-const PROLOGUE_TOTAL_FRAMES = 390;
-const ENDING_RESCUE_TOTAL_FRAMES = 390;
-const ENDING_RESCUE_WALK_FRAMES = 116;
-const ENDING_RESCUE_REUNION_START = 150;
-const ENDING_RESCUE_REUNION_FRAMES = 84;
+const PROLOGUE_TOTAL_FRAMES = 600;
+const ENDING_RESCUE_TOTAL_FRAMES = 600;
+const ENDING_RESCUE_WALK_FRAMES = 160;
+const ENDING_RESCUE_REUNION_START = 230;
+const ENDING_RESCUE_REUNION_FRAMES = 130;
 const SPRING_TRIGGER_PAD = 8;
 const SPRING_TRIGGER_SIDE_INSET = 6;
 const SPIKE_KILL_HEIGHT = 36;
@@ -1737,9 +1737,9 @@ const SCENE_TR_BOSS_TO_STAGE2 = {
   captionSub: "擊碎通路高牆",
 };
 const SCENE_TR_SLINGSHOT_TO_BOSS = {
-  outFrames: 74,
-  holdFrames: 92,
-  inFrames: 54,
+  outFrames: 150,
+  holdFrames: 300,
+  inFrames: 150,
   caption: "前往第二階段",
   captionSub: "決戰能量之巔",
   variant: "tower",
