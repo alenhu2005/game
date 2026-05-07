@@ -3,7 +3,7 @@ const ctx = canvas.getContext("2d");
 
 const WIDTH = 960;
 const HEIGHT = 540;
-const BUILD_ID = "20260507-mobile-touch";
+const BUILD_ID = "20260507-landscape-js";
 
 function configureCanvas() {
   const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
@@ -40,6 +40,7 @@ const cutsceneVideoOverlay = document.getElementById("cutsceneVideoOverlay");
 const cutsceneVideoStage = document.querySelector(".video-overlay__stage");
 const cutsceneVideo = document.getElementById("cutsceneVideo");
 const cutsceneVideoHint = document.getElementById("cutsceneVideoHint");
+const portraitBlockerEl = document.getElementById("portraitBlocker");
 
 const FLOOR_Y = 408;
 const GRAVITY = 0.56;
@@ -644,7 +645,63 @@ function startBackgroundMusic() {
   audio.musicNextTime = context.currentTime + 0.06;
 }
 
+function tryLockLandscape() {
+  try {
+    const o = screen.orientation;
+    if (o && typeof o.lock === "function") {
+      o.lock("landscape").catch(() => {});
+    }
+  } catch (_) {}
+}
+
+function isViewportPortraitLayout() {
+  const vv = window.visualViewport;
+  const w = vv ? vv.width : window.innerWidth;
+  const h = vv ? vv.height : window.innerHeight;
+  if (h > w + 12) {
+    return true;
+  }
+  try {
+    const o = screen.orientation;
+    if (o && typeof o.type === "string") {
+      return o.type.startsWith("portrait");
+    }
+  } catch (_) {}
+  return false;
+}
+
+function shouldForceLandscapeOnThisDevice() {
+  try {
+    if (window.matchMedia("(pointer: coarse)").matches) return true;
+  } catch (_) {}
+  try {
+    if (
+      window.matchMedia("(hover: none)").matches &&
+      window.matchMedia("(max-width: 1024px)").matches
+    ) {
+      return true;
+    }
+  } catch (_) {}
+  return window.innerWidth <= 1024;
+}
+
+function syncPortraitBlockerA11y() {
+  if (!portraitBlockerEl) return;
+  const blocked = isViewportPortraitLayout() && shouldForceLandscapeOnThisDevice();
+  portraitBlockerEl.classList.toggle("portrait-blocker--visible", blocked);
+  portraitBlockerEl.setAttribute("aria-hidden", blocked ? "false" : "true");
+  document.documentElement.classList.toggle("portrait-lock-active", blocked);
+  if (blocked) {
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+  } else {
+    document.body.style.overflow = "";
+    document.documentElement.style.overflow = "";
+  }
+}
+
 function unlockAudio() {
+  tryLockLandscape();
   const context = getAudioContext();
   if (!context) {
     return;
@@ -8566,6 +8623,7 @@ function loop(timestamp) {
   updateBackgroundMusic();
   render();
   syncMobileControlsVisibility();
+  syncPortraitBlockerA11y();
 
   input.jumpPressed = false;
   input.dashPressed = false;
@@ -8908,14 +8966,24 @@ if (cutsceneVideoOverlay) {
 }
 
 configureCanvas();
+syncPortraitBlockerA11y();
+window.addEventListener("orientationchange", () => {
+  syncPortraitBlockerA11y();
+  tryLockLandscape();
+});
 window.addEventListener("resize", () => {
   configureCanvas();
   layoutCutsceneVideo();
   syncMobileControlsVisibility();
+  syncPortraitBlockerA11y();
 });
 try {
   window.matchMedia("(max-width: 820px)").addEventListener("change", syncMobileControlsVisibility);
 } catch (_) {}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", syncPortraitBlockerA11y);
+  window.visualViewport.addEventListener("scroll", syncPortraitBlockerA11y);
+}
 canvas.addEventListener("pointerdown", (event) => {
   unlockAudio();
   const point = getCanvasPoint(event);

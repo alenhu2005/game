@@ -3,6 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- 修正 GitHub Pages 等環境：網址若為 /repo 而無結尾 /，相對路徑 assets/… 會請求錯誤位置 -->
+    <base href="./" />
+    <script>
+      (function () {
+        var p = location.pathname.replace(/\/index\.html?$/i, "");
+        if (!p.endsWith("/")) {
+          p += "/";
+        }
+        document.querySelector("base").setAttribute("href", p || "/");
+      })();
+    </script>
     <title>康貝特 200P 期末衝刺場</title>
     <link rel="stylesheet" href="style.css" />
   </head>
@@ -61,7 +72,23 @@
       </div>
     </main>
 
+    <div
+      id="portraitBlocker"
+      class="portrait-blocker"
+      role="alertdialog"
+      aria-modal="true"
+      aria-live="polite"
+      aria-hidden="true"
+      aria-label="請將裝置橫向"
+    >
+      <div class="portrait-blocker__card">
+        <div class="portrait-blocker__phone" aria-hidden="true"></div>
+        <p class="portrait-blocker__title">請橫向握持手機</p>
+        <p class="portrait-blocker__sub">本遊戲為橫向畫面，請旋轉裝置後繼續。</p>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
-    <script src="game.js?v=20260507-mobile-touch"></script>
+    <script src="game.js?v=20260507-landscape-js"></script>
   </body>
 </html>

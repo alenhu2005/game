@@ -248,6 +248,53 @@ canvas {
   letter-spacing: 0.02em;
 }
 
+.portrait-blocker {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px))
+    max(24px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+  place-items: center;
+  background: rgba(8, 12, 28, 0.94);
+  backdrop-filter: blur(10px);
+}
+
+.portrait-blocker.portrait-blocker--visible {
+  display: grid;
+}
+
+.portrait-blocker__card {
+  max-width: 320px;
+  text-align: center;
+  color: #fff7e8;
+}
+
+.portrait-blocker__phone {
+  width: 52px;
+  height: 88px;
+  margin: 0 auto 20px;
+  border-radius: 12px;
+  border: 3px solid rgba(255, 236, 140, 0.85);
+  box-shadow: 0 0 0 2px rgba(25, 70, 184, 0.35);
+  transform: rotate(-90deg);
+  background: linear-gradient(145deg, rgba(25, 70, 184, 0.35), rgba(239, 42, 62, 0.22));
+}
+
+.portrait-blocker__title {
+  margin: 0 0 10px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.portrait-blocker__sub {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  opacity: 0.88;
+}
+
 .ui-hidden {
   position: absolute;
   width: 1px;
