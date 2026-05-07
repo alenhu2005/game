@@ -1,5 +1,7 @@
 # Game File Layout
 
+使用方式（如何開啟、鍵位、觸控操作）請先看根目錄 `README.md`。
+
 這個遊戲目前以 `index.html` 依序載入 `game/split` 內的拆分檔案，仍維持一般 `<script>` 的同一個 global scope，避免一次大改成 ES modules 造成既有全域狀態失效。
 
 - `split/part-01.core.js`：核心常數、共用狀態、素材、音效、關卡工廠、Stage 2 物理。

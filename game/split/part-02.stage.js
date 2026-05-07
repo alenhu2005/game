@@ -123,6 +123,8 @@ function resetRun() {
   game.bossWarningShown = false;
   game.bossShockwaveHintShown = false;
   game.endingScene = null;
+  // Ensure mobile touch controls are hidden on the intro screen.
+  syncMobileControlsVisibility();
 
   if (SLINGSHOT_FIRST_ORDER) {
     enterStageTwo();
@@ -143,7 +145,7 @@ function respawnPlayer() {
 function getDeathAdCopy(reason, brand) {
   if (reason === "hit" && brand === "redbull") {
     return {
-      kicker: "競品碰撞實測",
+      kicker: "提神聯盟碰撞實測",
       headline: "有翅膀沒錯，但你先摔下去了",
       lines: [
         "極限狂牛掌控天空與速度，但不會幫你奪回貨架。",
@@ -156,7 +158,7 @@ function getDeathAdCopy(reason, brand) {
 
   if (reason === "hit" && brand === "monster") {
     return {
-      kicker: "競品碰撞實測",
+      kicker: "提神聯盟碰撞實測",
       headline: "魔爪很兇，你的進度先被抓走",
       lines: [
         "深淵魔爪的能量網罩住夜晚，也罩住你的路線。",
@@ -212,7 +214,7 @@ function getEnemyStompText(brand) {
   if (brand === "monster") {
     return "魔爪被踩熄火";
   }
-  return "競品被踩掉";
+  return "提神聯盟被踩掉";
 }
 
 function finishDeathAd() {
@@ -266,7 +268,7 @@ function updateHud() {
       game.state === "paused"
         ? `${s1}已暫停`
         : game.state === "won"
-        ? "兩關都過了"
+        ? "200p重見天日"
         : game.state === "gameover"
           ? `${s1}失手`
           : game.state === "stage2Intro"
@@ -381,7 +383,7 @@ function updatePlayer(frameScale) {
     player.facing = dir;
     player.vx = dir * 9.4;
     triggerStageOneShake(2.4);
-    spawnStageOnePopup("DASH!", player.x + player.w / 2, player.y - 6, "#ffd166");
+    spawnStageOnePopup("衝刺！", player.x + player.w / 2, player.y - 6, "#ffd166");
     for (let i = 0; i < 10; i += 1) {
       spawnStageOneParticle({
         x: player.x + player.w / 2,
@@ -618,7 +620,7 @@ function resolveVerticalCollisions(player, frameScale) {
         platform.spring.compressed = 8;
         triggerStageOneShake(2.6);
         soundFx.spring();
-        spawnStageOnePopup("BOING!", platform.x + platform.w / 2, platform.y - 12, "#ffd166");
+        spawnStageOnePopup("彈起！", platform.x + platform.w / 2, platform.y - 12, "#ffd166");
         for (let i = 0; i < 8; i += 1) {
           spawnStageOneParticle({
             x: platform.x + platform.w / 2 + (Math.random() - 0.5) * 30,
@@ -824,7 +826,7 @@ function updateSwitches(frameScale) {
           (p) => p.type === "switch" && p.switchState === sw
         );
         if (platform) {
-          spawnStageOnePopup("LOCKED!", platform.x + platform.w / 2, platform.y - 10, "#9bff8a");
+          spawnStageOnePopup("閘門鎖定！", platform.x + platform.w / 2, platform.y - 10, "#9bff8a");
           triggerStageOneShake(2.6);
           soundFx.switchLock();
         }
@@ -1050,7 +1052,7 @@ function spawnBossShockwave(x, y, brand = "monster") {
   if (level.bossEngaged && !game.bossShockwaveHintShown) {
     game.bossShockwaveHintShown = true;
     game.overlayTimer = Math.max(game.overlayTimer, 92);
-    game.overlayText = "Boss 衝擊波來了，記得用跳的過";
+    game.overlayText = "壟斷衝擊波來了，記得跳過去";
   }
 }
 
@@ -1095,7 +1097,7 @@ function spawnBossMinions(boss, count) {
       bossMinion: true,
     });
   }
-  spawnStageOnePopup("小怪增援！", boss.x + boss.w / 2, boss.y - 28, "#9bff8a");
+  spawnStageOnePopup("封鎖兵增援！", boss.x + boss.w / 2, boss.y - 28, "#9bff8a");
   soundFx.bossShoot();
   triggerStageOneShake(4);
   spawnBossBurst(boss.x + boss.w / 2, boss.y + boss.h * 0.44, minionBrand, 18, {
@@ -1145,7 +1147,7 @@ function updateBossAi(enemy, player, frameScale) {
   ) {
     level.bossEngaged = true;
     bossJustEngaged = true;
-    spawnStageOnePopup("BOSS 開戰！", cx, enemy.y - 22, "#ff2244");
+    spawnStageOnePopup("提神聯盟開戰！", cx, enemy.y - 22, "#ff2244");
     triggerStageOneShake(9);
     soundFx.bossRoar();
     spawnBossBurst(cx, enemy.y + enemy.h * 0.4, enemy.brand, 28, {
@@ -1185,7 +1187,7 @@ function updateBossAi(enemy, player, frameScale) {
   const damaged = hpRatio <= 0.75;
   if (enemy.berserk && !wasBerserk && !bossJustEngaged) {
     soundFx.bossRoar();
-    spawnStageOnePopup("BERSERK!", cx, enemy.y - 18, "#ff5577");
+    spawnStageOnePopup("壟斷暴走！", cx, enemy.y - 18, "#ff5577");
     triggerStageOneShake(8);
     spawnBossBurst(cx, enemy.y + enemy.h * 0.35, enemy.brand, 30, {
       angle: -Math.PI / 2,
@@ -1687,7 +1689,7 @@ function stompBossFromPlayer(enemy, player) {
       ? "極限狂牛倒下，深淵魔爪降臨！"
       : bossWillFall
         ? "提神聯盟崩解！"
-        : `BOSS -1（剩 ${enemy.hp}）`,
+        : `聯盟 -1（剩 ${enemy.hp}）`,
     enemy.x + enemy.w / 2,
     enemy.y - 8,
     firstFormBroken || bossWillFall ? "#ff7b20" : "#ffd166"
@@ -1838,7 +1840,7 @@ function stompNormalEnemyFromPlayer(enemy, player) {
   }
   game.stomps += 1;
   game.overlayTimer = 34;
-  game.overlayText = enemy.bossMinion ? "小怪踩扁！" : getEnemyStompText(enemy.brand);
+  game.overlayText = enemy.bossMinion ? "封鎖兵踩扁！" : getEnemyStompText(enemy.brand);
   triggerStageOneShake(wantsBoost ? 3.4 : 2.4);
   soundFx.stomp();
   if (wantsBoost && soundFx.jump) soundFx.jump();
@@ -2403,7 +2405,7 @@ function updateBossIntroCutscene(frameScale) {
       game.pendingStageTransition = SLINGSHOT_FIRST_ORDER ? "toEndingAfterBoss" : "stage2";
       game.pendingStageTransitionTimer = Math.max(game.pendingStageTransitionTimer ?? 0, 36);
       game.overlayTimer = 108;
-      game.overlayText = SLINGSHOT_FIRST_ORDER ? "提神聯盟崩解，準備拯救200p" : "勝利！準備進第二階段";
+      game.overlayText = SLINGSHOT_FIRST_ORDER ? "提神聯盟崩解，準備拯救200p" : "通路破口開啟，準備進第二階段";
     }
     return;
   }
@@ -2521,6 +2523,17 @@ function drawBossIntroCutscene() {
     accent = "#ff7b20";
   }
 
+  // Typewriter + fade between lines for a smoother cutscene feel.
+  const holdTotal = cs.phase === "victory" ? 170 : BOSS_INTRO_LINE_HOLD_FRAMES;
+  const lineElapsed = clamp(holdTotal - (cs.lineHold ?? 0), 0, holdTotal);
+  const typeCharsPerFrame = 1.5; // ~90 chars/sec at 60fps
+  const typedCount = Math.max(0, Math.floor(lineElapsed * typeCharsPerFrame));
+  const typedLine = line ? line.slice(0, typedCount) : "";
+  const fadeOut = clamp((30 - (cs.lineHold ?? 999)) / 30, 0, 1);
+  const fadeIn = clamp(lineElapsed / 18, 0, 1);
+  const panelAlpha = 0.65 + 0.35 * fadeIn;
+  const textAlpha = (1 - 0.45 * fadeOut) * fadeIn;
+
   const BODY_FONT = "15px Avenir Next, sans-serif";
   const BODY_LINE_H = 18;
   const BODY_TOP = 54;
@@ -2530,10 +2543,12 @@ function drawBossIntroCutscene() {
   const MAX_PANEL_H = 268;
 
   ctx.font = BODY_FONT;
-  const bodyLines = countCutsceneWrappedLines(line, maxW, MAX_BODY_LINES);
+  const bodyLines = countCutsceneWrappedLines(typedLine || line, maxW, MAX_BODY_LINES);
   const panelH = clamp(BODY_TOP + bodyLines * BODY_LINE_H + FOOTER_GAP, MIN_PANEL_H, MAX_PANEL_H);
   const panelY = HEIGHT - letterH - panelH - panelBottomMargin;
 
+  ctx.save();
+  ctx.globalAlpha = panelAlpha;
   ctx.fillStyle = "rgba(255, 252, 246, 0.96)";
   roundRect(panelX, panelY, panelW, panelH, 22);
   ctx.fill();
@@ -2541,17 +2556,43 @@ function drawBossIntroCutscene() {
   ctx.lineWidth = 2;
   roundRect(panelX, panelY, panelW, panelH, 22);
   ctx.stroke();
+  ctx.restore();
 
   drawBossIntroSpeakerPortrait(panelY, cs);
+
+  // Accent underline (subtle motion).
+  ctx.save();
+  ctx.globalAlpha = 0.7 + 0.3 * fadeIn;
+  const underlineW = 120 + Math.sin((cs.timer ?? 0) * 0.12) * 10;
+  const underlineX = panelX + 22;
+  const underlineY = panelY + 38;
+  const grad = ctx.createLinearGradient(underlineX, underlineY, underlineX + underlineW, underlineY);
+  grad.addColorStop(0, accent);
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = grad;
+  roundRect(underlineX, underlineY, underlineW, 6, 3);
+  ctx.fill();
+  ctx.restore();
 
   ctx.fillStyle = accent;
   ctx.font = "bold 13px Avenir Next, sans-serif";
   ctx.textAlign = "left";
   ctx.fillText(speaker, panelX + 22, panelY + 30);
 
+  ctx.save();
+  ctx.globalAlpha = textAlpha;
   ctx.fillStyle = "#16203d";
   ctx.font = BODY_FONT;
-  wrapCutsceneLine(line, panelX + 22, panelY + BODY_TOP, maxW, BODY_LINE_H, MAX_BODY_LINES);
+  wrapCutsceneLine(typedLine || line, panelX + 22, panelY + BODY_TOP, maxW, BODY_LINE_H, MAX_BODY_LINES);
+  ctx.restore();
+
+  // Hint to skip (kept inside letterbox area).
+  ctx.save();
+  ctx.fillStyle = "rgba(255, 247, 232, 0.68)";
+  ctx.font = "bold 12px Avenir Next, sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText("Space / Enter / 點一下可略過", WIDTH - 18, HEIGHT - 18);
+  ctx.restore();
 
   ctx.textAlign = "left";
 }
@@ -2887,6 +2928,44 @@ function drawBackground() {
 
   drawParallaxHills(level.decorations.hillsFar, 0.25, palette.farHill);
   drawParallaxHills(level.decorations.hillsNear, 0.45, palette.nearHill);
+
+  // Boss lane / arena background placement: keep it in the far scenery layer.
+  if (game.stage === 1 && (level.bossEngaged || isNearBossArena())) {
+    const pulse = 0.5 + 0.5 * Math.sin((game.elapsed || 0) * 0.06);
+    const x = 560;
+    const y = 86;
+    const w = 360;
+    const h = 84;
+    ctx.save();
+    ctx.globalAlpha = 0.62;
+    ctx.shadowColor = "rgba(15, 23, 51, 0.18)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 6;
+    const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+    grad.addColorStop(0, "rgba(239, 42, 62, 0.78)");
+    grad.addColorStop(1, "rgba(255, 124, 32, 0.78)");
+    ctx.fillStyle = grad;
+    roundRect(x, y, w, h, 22);
+    ctx.fill();
+
+    ctx.shadowColor = "transparent";
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    for (let i = 0; i < 8; i += 1) {
+      ctx.fillRect(x + 18 + i * 44, y + 14 + (i % 2) * 6, 10, 56);
+    }
+    ctx.fillStyle = "#fff7e8";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.font = "bold 20px Avenir Next, sans-serif";
+    ctx.fillText("康貝特200P", x + 22, y + 32);
+    ctx.fillStyle = `rgba(255, 247, 232, ${0.74 + pulse * 0.18})`;
+    ctx.font = "bold 14px Avenir Next, sans-serif";
+    ctx.fillText("能量巨塔指定補給 · 喝了再上", x + 22, y + 58);
+    ctx.textBaseline = "alphabetic";
+    ctx.restore();
+  }
+
   drawClouds();
 }
 
@@ -2948,12 +3027,12 @@ function drawPlatforms() {
         ctx.fillStyle = "#1f5b21";
         ctx.font = "bold 10px Avenir Next, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("LOCK", x + platform.w / 2, y + 9);
+        ctx.fillText("鎖", x + platform.w / 2, y + 9);
       } else if (state) {
         ctx.fillStyle = "#20345d";
         ctx.font = "bold 10px Avenir Next, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(state.id === "plate1" ? "G1" : state.id === "plate2" ? "G2" : "SW", x + platform.w / 2, y + 9);
+        ctx.fillText(state.id === "plate1" ? "閘1" : state.id === "plate2" ? "閘2" : "開", x + platform.w / 2, y + 9);
       }
       continue;
     }
@@ -3312,6 +3391,6 @@ function drawCrates() {
     ctx.fillStyle = "rgba(255, 209, 102, 0.92)";
     ctx.font = "bold 11px Avenir Next, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("PUSH", x + crate.w / 2, y + crate.h / 2 + 4);
+    ctx.fillText("推貨", x + crate.w / 2, y + crate.h / 2 + 4);
   }
 }

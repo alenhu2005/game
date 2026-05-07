@@ -99,7 +99,7 @@ body {
 }
 
 .hud-button--danger {
-  right: 96px;
+  right: 82px;
   background: rgba(239, 42, 62, 0.72);
 }
 
@@ -324,7 +324,7 @@ canvas {
   }
 
   .hud-button--danger {
-    right: max(88px, env(safe-area-inset-right, 0px) + 76px);
+    right: max(78px, env(safe-area-inset-right, 0px) + 68px);
   }
 
   canvas {

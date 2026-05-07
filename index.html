@@ -17,13 +17,13 @@
         document.querySelector("base").setAttribute("href", p || "/");
       })();
     </script>
-    <title>提神宇宙：康貝特200p逆襲戰</title>
-    <link rel="stylesheet" href="style.css?v=20260510-no-double-tap-zoom" />
+    <title>拯救康貝特大作戰</title>
+    <link rel="stylesheet" href="style.css?v=20260510-intro-title-only" />
   </head>
   <body>
     <main class="page">
       <section class="game-shell">
-        <canvas id="game" width="960" height="540" aria-label="Platform game ad"></canvas>
+        <canvas id="game" width="960" height="540" aria-label="提神宇宙康貝特200p逆襲遊戲"></canvas>
         <div
           id="touchControls"
           class="touch-controls"
@@ -46,11 +46,11 @@
             </button>
           </div>
         </div>
-        <button id="skipButton" class="hud-button" type="button" aria-label="跳關">
-          跳關
+        <button id="skipButton" class="hud-button" type="button" aria-label="測試跳階段">
+          跳段
         </button>
-        <button id="killBossButton" class="hud-button hud-button--danger" type="button" aria-label="秒殺Boss">
-          秒殺Boss
+        <button id="killBossButton" class="hud-button hud-button--danger" type="button" aria-label="測試擊破提神聯盟">
+          破聯盟
         </button>
         <div id="cutsceneVideoOverlay" class="video-overlay" aria-hidden="true">
           <div class="video-overlay__stage">
@@ -71,7 +71,7 @@
         <span id="coinsPill">200P 0 / 0</span>
         <span id="livesPill">精神值 5</span>
         <span id="timerPill">剩餘時間 78秒</span>
-        <button id="restartButton" type="button">Restart</button>
+        <button id="restartButton" type="button">重開逆襲</button>
       </div>
     </main>
 
@@ -104,9 +104,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
     <!-- 拆分後依序載入，保持同一個 global scope；維護說明見 game/README.md -->
-    <script src="game/split/part-01.core.js?v=20260510-story-animations-10s"></script>
-    <script src="game/split/part-02.stage.js?v=20260510-story-animations-10s"></script>
-    <script src="game/split/part-03.render-loop.js?v=20260510-story-animations-10s"></script>
-    <script src="game/split/part-04.input-boot.js?v=20260510-story-animations-10s"></script>
+    <script src="game/split/part-01.core.js?v=20260510-intro-title-only"></script>
+    <script src="game/split/part-02.stage.js?v=20260510-intro-title-only"></script>
+    <script src="game/split/part-03.render-loop.js?v=20260510-intro-title-only"></script>
+    <script src="game/split/part-04.input-boot.js?v=20260510-intro-title-only"></script>
   </body>
 </html>

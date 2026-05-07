@@ -101,7 +101,8 @@ const BOSS_INTRO_BOUNCE_DURATION = 17;
 const BOSS_INTRO_VIDEO_PHASE = "playerVideo";
 const BOSS_PHASE_SHIFT_CUTSCENE_FRAMES = 210;
 const BOSS_VICTORY_CUTSCENE_FRAMES = 420;
-const PROLOGUE_TOTAL_FRAMES = 600;
+// Opening prologue is now longer to include essential player instructions.
+const PROLOGUE_TOTAL_FRAMES = 1050;
 const ENDING_RESCUE_TOTAL_FRAMES = 600;
 const ENDING_RESCUE_WALK_FRAMES = 160;
 const ENDING_RESCUE_REUNION_START = 230;
@@ -116,7 +117,7 @@ const BOSS_RISING_STOMP_CENTER_INSET = 6;
 const HIDDEN_BOSS_SKIP_KEY = "Backquote";
 const BOSS_INTRO_LINES_BOSS = [
   "「能闖上能量巨塔，你這間邊緣小廠還算有骨氣。可惜通路、速度、天空，全都在紅牛帝國的資本版圖裡。康貝特，你的上架權早就被我們買斷了。」",
-  "「我們和魔爪軍團成立提神聯盟，市場壟斷令已經生效。你們那瓶終極配方『康貝特200p』，只配被封在塔頂金庫，永遠變成舊時代標本！」",
+  "「我們不需要結盟。光靠資本與通路，就能把市場視野夾到只剩我們的標籤。你們那瓶終極配方『康貝特200p』，只配被封在塔頂金庫，永遠變成舊時代標本！」",
   "「上班族、學生、基層勞工的疲憊不值錢，值錢的是我們包裝過的菁英速度。想救配方？先從我的極限狂牛衝撞下活下來！」",
 ];
 const BOSS_INTRO_LINES_PLAYER = [
@@ -537,6 +538,118 @@ const palette = {
   goalFlag: "#1946b8",
   hud: "rgba(15, 23, 51, 0.62)",
 };
+
+/**
+ * 康貝特200p 廣告文案（中等強度用）：提供「一行輪播」與「3-5 行賣點」素材。
+ * 長文（完整成分表）先不進遊戲畫面，避免擠版/干擾操作；之後若要加「詳細頁」再擴充。
+ */
+const COMBAT_200P_TAGLINES = [
+  "這時候你需要來一瓶【康貝特200P】",
+  "咖啡因勁爽提神，活力滿分",
+  "加大容量，續航力十足",
+  "經典香氣 + 微氣泡，順口好喝",
+  "輕巧瓶身，隨時補充能量",
+  "健康黃金比例：7種維生素 + 牛磺酸 + 胺基酸",
+  "滿足一天活力，喝了再上",
+];
+
+const COMBAT_200P_BENEFITS = [
+  "✅ 咖啡因勁爽提神，活力滿分",
+  "✅ 加大容量，滿滿能量，續航力十足",
+  "✅ 經典香氣加微氣泡，清爽順口",
+  "✅ 輕巧瓶身設計，隨時隨地補能量",
+  "✅ 健康黃金比例：7種維生素＋牛磺酸＋胺基酸",
+];
+
+function getRotatingCopy(frame, list, secondsPer = 3) {
+  if (!Array.isArray(list) || list.length === 0) return "";
+  const framesPer = Math.max(1, Math.round(secondsPer * 60));
+  const idx = Math.floor(Math.max(0, frame || 0) / framesPer) % list.length;
+  return list[idx];
+}
+
+function getAdTagline(frame) {
+  return getRotatingCopy(frame, COMBAT_200P_TAGLINES, 3.2);
+}
+
+function getAdBenefits(frame, maxLines = 4) {
+  const lines = COMBAT_200P_BENEFITS.slice(0, Math.max(1, maxLines));
+  // 輪播：每次把清單往前 shift 一格，讓重複曝光沒那麼死板
+  const shift = Math.floor(Math.max(0, frame || 0) / Math.round(4.2 * 60)) % COMBAT_200P_BENEFITS.length;
+  if (!shift) return lines;
+  const rotated = COMBAT_200P_BENEFITS.slice(shift).concat(COMBAT_200P_BENEFITS.slice(0, shift));
+  return rotated.slice(0, Math.max(1, maxLines));
+}
+
+function drawCornerBug(x, y, text, subText = "") {
+  const padX = 12;
+  const padY = 9;
+  ctx.save();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.font = "bold 14px Avenir Next, sans-serif";
+  const mainW = Math.ceil(ctx.measureText(text).width);
+  ctx.font = "12px Avenir Next, sans-serif";
+  const subW = subText ? Math.ceil(ctx.measureText(subText).width) : 0;
+  const w = Math.max(mainW, subW) + padX * 2 + 18;
+  const h = subText ? 44 : 34;
+
+  const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+  grad.addColorStop(0, palette.stripeRed);
+  grad.addColorStop(1, palette.stripeOrange);
+  ctx.shadowColor = "rgba(239, 42, 62, 0.35)";
+  ctx.shadowBlur = 14;
+  ctx.shadowOffsetY = 3;
+  ctx.fillStyle = grad;
+  roundRect(x, y, w, h, 14);
+  ctx.fill();
+
+  ctx.shadowColor = "transparent";
+  ctx.fillStyle = "#fff7e8";
+  ctx.font = "bold 14px Avenir Next, sans-serif";
+  ctx.fillText(text, x + padX, y + (subText ? 16 : h / 2));
+  if (subText) {
+    ctx.fillStyle = "rgba(255,255,255,0.82)";
+    ctx.font = "12px Avenir Next, sans-serif";
+    ctx.fillText(subText, x + padX, y + 32);
+  }
+
+  // 右側小圓點（像「貼紙」）
+  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  ctx.beginPath();
+  ctx.arc(x + w - 14, y + 14, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawPillSticker(cx, cy, text, opts = {}) {
+  const {
+    font = "bold 13px Avenir Next, sans-serif",
+    fill = "rgba(12, 18, 35, 0.66)",
+    stroke = "rgba(255,255,255,0.18)",
+    textFill = "#fff7e8",
+    padX = 14,
+    h = 30,
+  } = opts;
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = font;
+  const w = Math.ceil(ctx.measureText(text).width) + padX * 2;
+  const x = cx - w / 2;
+  const y = cy - h / 2;
+  ctx.fillStyle = fill;
+  roundRect(x, y, w, h, h / 2);
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1;
+  roundRect(x, y, w, h, h / 2);
+  ctx.stroke();
+  ctx.fillStyle = textFill;
+  ctx.fillText(text, cx, cy + 0.5);
+  ctx.textBaseline = "alphabetic";
+  ctx.restore();
+}
 
 function rectsOverlap(a, b) {
   return (
@@ -1581,7 +1694,11 @@ function buildLevel() {
 
   // Stage 1 is boss-only: keep arena ground + billboard.
   addGround(3000, 1540);
+  // Background billboards: worldbuilding (not sponsorship). Keep above playfield.
+  addBillboard(3168, 172, 210, 124, "任務目標：拯救康貝特200P", "");
   addBillboard(3336, 156, 224, 132, "喝一口，繼續衝", "");
+  addBillboard(3568, 182, 196, 118, "情報：200P 在塔頂金庫", "");
+  addBillboard(4048, 166, 220, 128, "補給就緒 · 喝了再上", "");
   addBoss(3908, FLOOR_Y - 76, 3844, 4184);
 
   const stageOneWorldWidth = 4680;
@@ -1930,7 +2047,8 @@ function drawTowerSceneTransition(tr, alpha) {
   ctx.arc(towerX + towerW / 2, towerY + 100, 86 + towerGlow * 34, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = "rgba(255, 252, 245, 0.92)";
+  // Make the cage window readable: remove the heavy white glass.
+  ctx.fillStyle = "rgba(255, 252, 245, 0.18)";
   roundRect(towerX + 46, towerY + 64, 90, 156, 16);
   ctx.fill();
   ctx.strokeStyle = "rgba(255, 216, 102, 0.86)";
@@ -1946,6 +2064,7 @@ function drawTowerSceneTransition(tr, alpha) {
     ctx.lineTo(bx, towerY + 210);
     ctx.stroke();
   }
+
   drawTransitionCan(art.product, towerX + towerW / 2, towerY + 144, 104, Math.sin(p * 8) * 0.04, "#f7fbff");
 
   ctx.fillStyle = "#fff7e8";
@@ -3298,7 +3417,7 @@ function syncMobileControlsVisibility() {
     chrome &&
     game.stage === 1 &&
     !game.bossCutscene?.active &&
-    (game.state === "running" || game.state === "intro" || game.state === "ad");
+    (game.state === "running" || game.state === "ad");
   touchControlsEl.classList.toggle("touch-controls--visible", visible);
   touchControlsEl.setAttribute("aria-hidden", visible ? "false" : "true");
   if (touchChromeWasVisible && !visible) {

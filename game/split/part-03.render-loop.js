@@ -134,18 +134,22 @@ function drawDecorations() {
     ctx.save();
     roundRect(x + imageInset, sign.y + imageInset, sign.w - imageInset * 2, sign.h - imageInset * 2, 13);
     ctx.clip();
-    const usedPose = drawCoverImage(
-      art.pose,
+    // Rotate/alternate billboard visuals to avoid repeating the same image.
+    const billboardImages = [art.pose, art.face, art.player, art.product, art.enemyRedBull, art.enemyMonster];
+    const pick = Math.abs(Math.floor((sign.x || 0) / 120) + Math.floor((sign.y || 0) / 40)) % billboardImages.length;
+    const img = billboardImages[pick];
+    const ok = drawCoverImage(
+      img,
       x + imageInset,
       sign.y + imageInset,
       sign.w - imageInset * 2,
       sign.h - imageInset * 2,
-      -Math.PI / 2,
+      pick % 3 === 0 ? -Math.PI / 2 : 0,
       1.12,
       0.03,
       -0.02
     );
-    if (!usedPose && canDrawImage(art.billboardRef)) {
+    if (!ok && canDrawImage(art.billboardRef)) {
       drawCoverImage(
         art.billboardRef,
         x + imageInset,
@@ -419,7 +423,8 @@ function drawEnemies() {
         ctx.fillStyle = "#fff7e8";
         ctx.font = "bold 11px Avenir Next, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(`BOSS HP ${Math.max(0, enemy.hp)}/${enemy.maxHp}`, barX + barW / 2, barY - 4);
+        const bossName = enemy.brand === "monster" ? "深淵魔爪" : "極限狂牛";
+        ctx.fillText(`${bossName} HP ${Math.max(0, enemy.hp)}/${enemy.maxHp}`, barX + barW / 2, barY - 4);
 
         const phaseColor = enemy.phase === "stunned" ? "#9bff8a" :
           enemy.phase === "transform" ? "#ffd166" :
@@ -429,10 +434,10 @@ function drawEnemies() {
         const baseLabel = enemy.phase === "idle" ? "待機中" :
           enemy.phase === "transform" ? "魔爪降臨中" :
           enemy.phase === "stunned" ? "破綻！踩它" :
-          enemy.phase === "shaken" ? "BOSS 翻臉" :
+          enemy.phase === "shaken" ? "聯盟暴走" :
           enemy.phase === "charge" || enemy.phase === "chargeWindup" ? "衝刺中" :
           enemy.phase === "shootWindup" ? "蓄力射擊" :
-          enemy.phase === "summonWindup" ? "召喚小怪" :
+          enemy.phase === "summonWindup" ? "召喚封鎖兵" :
           enemy.phase === "jumpWindup" || enemy.phase === "airborne" ? "跳躍砸地" :
           "巡邏中";
         const phasePrefix = !level.bossEngaged
@@ -440,7 +445,7 @@ function drawEnemies() {
           : enemy.phase === "stunned"
             ? ""
             : enemy.berserk
-              ? "BERSERK · "
+              ? "壟斷暴走 · "
               : enemy.enraged
                 ? "怒火全開 · "
                 : "開戰中 · ";
@@ -451,7 +456,7 @@ function drawEnemies() {
         if (level.bossEngaged) {
           ctx.fillStyle = "rgba(255, 247, 232, 0.82)";
           ctx.font = "bold 10px Avenir Next, sans-serif";
-          ctx.fillText(`小怪 ${countBossMinionsAlive()}`, barX + barW / 2, barY + 35);
+          ctx.fillText(`封鎖兵 ${countBossMinionsAlive()}`, barX + barW / 2, barY + 35);
         }
         if (enemy.phase === "stunned") {
           const stompPulse = 0.55 + Math.sin(Date.now() / 110) * 0.45;
@@ -460,7 +465,7 @@ function drawEnemies() {
           ctx.fill();
           ctx.fillStyle = "#16203d";
           ctx.font = "bold 13px Avenir Next, sans-serif";
-          ctx.fillText("現在踩它", barX + barW / 2, enemy.y - 41);
+          ctx.fillText("踩破綻", barX + barW / 2, enemy.y - 41);
         }
       }
 
@@ -504,14 +509,14 @@ function drawGoal() {
     ctx.fillStyle = "#ffd2bd";
     ctx.font = "bold 14px Avenir Next, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("BOSS 未倒", poleX + level.goal.w / 2, level.goal.y - 8);
+    ctx.fillText("金庫封鎖", poleX + level.goal.w / 2, level.goal.y - 8);
   } else {
     ctx.fillStyle = "rgba(255, 240, 170, 0.22)";
     ctx.fillRect(poleX - 10, level.goal.y - 6, level.goal.w + 20, level.goal.h + 12);
     ctx.fillStyle = "#fff0b3";
     ctx.font = "bold 14px Avenir Next, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("可交件", poleX + level.goal.w / 2, level.goal.y - 8);
+    ctx.fillText("配方解封", poleX + level.goal.w / 2, level.goal.y - 8);
   }
   ctx.fillStyle = locked ? "#a13a4d" : palette.goalFlag;
   ctx.beginPath();
@@ -542,7 +547,7 @@ function drawGoal() {
   ctx.fillStyle = palette.stripeRed;
   ctx.font = "bold 16px Avenir Next, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("交件區", archX + level.finishArch.w / 2, level.finishArch.y + 102);
+  ctx.fillText("200p金庫", archX + level.finishArch.w / 2, level.finishArch.y + 102);
 }
 
 function drawGoalArrow() {
@@ -581,7 +586,7 @@ function drawGoalArrow() {
   ctx.fillStyle = "#fff7e8";
   ctx.font = "bold 11px Avenir Next, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("交件區", arrowX, arrowY - 18);
+  ctx.fillText("200p金庫", arrowX, arrowY - 18);
   ctx.fillText(`${distance}`, arrowX, arrowY + 25);
   ctx.restore();
 }
@@ -744,6 +749,15 @@ function drawStageTwoPowerMeter(stageTwo) {
   for (let i = 1; i < 4; i += 1) {
     ctx.fillRect(meterX + (meterW * i) / 4, meterY + 3, 1.5, meterH - 6);
   }
+
+  drawPillSticker(meterX + 92, meterY - 48, "康貝特200P 上架砲彈", {
+    fill: "rgba(12, 18, 35, 0.44)",
+    stroke: "rgba(255,255,255,0.12)",
+    textFill: "rgba(255,247,232,0.9)",
+    font: "bold 11px Avenir Next, sans-serif",
+    h: 24,
+    padX: 12,
+  });
 }
 
 function drawStageTwoSling(stageTwo) {
@@ -985,7 +999,7 @@ function drawStageTwoTargets(stageTwo) {
       ctx.fillStyle = "rgba(255, 247, 232, 0.82)";
       ctx.font = "bold 12px Avenir Next, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("最後目標", target.x + target.w / 2, target.y - 18);
+      ctx.fillText("最後封鎖", target.x + target.w / 2, target.y - 18);
     }
   });
 }
@@ -1067,7 +1081,7 @@ function drawStageTwoProjectile(stageTwo) {
     ctx.fillStyle = "#fff7e8";
     ctx.font = "bold 14px Avenir Next, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("拖曳 200P", projectile.x, projectile.y - 45);
+    ctx.fillText("發射 200p", projectile.x, projectile.y - 45);
   }
 }
 
@@ -1240,6 +1254,12 @@ function drawHud() {
       roundRect(pipX + i * 18, pipY, 12, 8, 4);
       ctx.fill();
     }
+
+    // Avoid overlapping with audio toggle / warning pills: keep branding inside HUD.
+    ctx.fillStyle = "rgba(255, 247, 232, 0.55)";
+    ctx.font = "bold 12px Avenir Next, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText("康貝特200P", 330, 28);
     return;
   }
 
@@ -1270,6 +1290,12 @@ function drawHud() {
     WIDTH - 24,
     60
   );
+
+  // Avoid overlapping with the audio toggle / warning pills: keep branding inside left HUD box.
+  ctx.fillStyle = "rgba(255, 247, 232, 0.5)";
+  ctx.font = "bold 12px Avenir Next, sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText("康貝特200P", 300, 28);
 
   ctx.fillStyle = "rgba(12, 18, 35, 0.58)";
   roundRect(WIDTH / 2 - 90, 16, 180, 34, 14);
@@ -1382,6 +1408,24 @@ function drawPrologueIntro() {
 
   drawBackground();
 
+  // Cinematic letterbox + vignette for a more “opening cutscene” feel.
+  const barsIn = easeOutCubic(clamp((t - 0.02) / 0.08, 0, 1));
+  const barsOut = 1 - easeOutCubic(clamp((t - 0.92) / 0.08, 0, 1));
+  const bars = barsIn * barsOut;
+  if (bars > 0.001) {
+    const letterH = Math.round(46 * bars);
+    ctx.save();
+    ctx.fillStyle = `rgba(8, 12, 28, ${0.86 * bars})`;
+    ctx.fillRect(0, 0, WIDTH, letterH);
+    ctx.fillRect(0, HEIGHT - letterH, WIDTH, letterH);
+    const vignette = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, 160, WIDTH / 2, HEIGHT / 2, 720);
+    vignette.addColorStop(0, `rgba(0,0,0, ${0})`);
+    vignette.addColorStop(1, `rgba(0,0,0, ${0.22 * bars})`);
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.restore();
+  }
+
   const groundY = 416;
   ctx.fillStyle = palette.ground;
   ctx.fillRect(0, groundY, WIDTH, HEIGHT - groundY);
@@ -1412,21 +1456,7 @@ function drawPrologueIntro() {
   ctx.font = "13px Avenir Next, sans-serif";
   ctx.fillText("邊緣苦撐中", 177, 308);
 
-  const marketAlpha = clamp((t - 0.24) / 0.18, 0, 1) * (1 - clamp((t - 0.68) / 0.12, 0, 1) * 0.55);
-  if (marketAlpha > 0) {
-    ctx.save();
-    ctx.globalAlpha = marketAlpha;
-    ctx.fillStyle = "rgba(12, 18, 35, 0.74)";
-    roundRect(356, 104, 250, 86, 20);
-    ctx.fill();
-    ctx.fillStyle = "#fff7e8";
-    ctx.font = "bold 24px Avenir Next, sans-serif";
-    ctx.fillText("市場壟斷令", 481, 142);
-    ctx.fillStyle = "rgba(255, 247, 232, 0.78)";
-    ctx.font = "14px Avenir Next, sans-serif";
-    ctx.fillText("貨架、天空、夜晚全部封鎖", 481, 168);
-    ctx.restore();
-  }
+  // Market blockade block removed: keep prologue composition clean.
 
   const towerAlpha = clamp((t - 0.44) / 0.22, 0, 1);
   ctx.save();
@@ -1465,11 +1495,31 @@ function drawPrologueIntro() {
   const productTilt = -0.06 + Math.sin(game.prologueTimer * 0.1) * 0.035 + squeeze * 0.18;
   drawPrologueCan(art.product, formulaX, formulaY, productH, productTilt, "#f7fbff");
 
+  // “Steal” sparkle: small particles around the can as it’s pulled away.
+  if (steal > 0.12 && steal < 0.98) {
+    ctx.save();
+    const p = clamp((steal - 0.12) / 0.86, 0, 1);
+    const count = 10;
+    for (let i = 0; i < count; i += 1) {
+      const ang = p * Math.PI * 2 + i * (Math.PI * 2) / count;
+      const rr = 18 + (1 - p) * 28 + Math.sin(p * 9 + i) * 6;
+      const sx = formulaX + Math.cos(ang) * rr;
+      const sy = formulaY + Math.sin(ang) * rr * 0.7;
+      ctx.fillStyle = `rgba(255, 216, 102, ${0.06 + 0.18 * (1 - p)})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 2.2 + (1 - p) * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   ctx.save();
   ctx.globalAlpha = towerAlpha;
-  ctx.fillStyle = "rgba(255, 252, 245, 0.9)";
+  // Make the cage window readable: remove the heavy white glass.
+  ctx.fillStyle = "rgba(255, 252, 245, 0.18)";
   roundRect(towerX + 42, towerY + 62, 86, 154, 16);
   ctx.fill();
+
   ctx.strokeStyle = "rgba(255, 216, 102, 0.88)";
   ctx.lineWidth = 4;
   roundRect(towerX + 42, towerY + 62, 86, 154, 16);
@@ -1483,6 +1533,57 @@ function drawPrologueIntro() {
     ctx.moveTo(baseX + offset, towerY + 70);
     ctx.lineTo(baseX + offset * 0.25, towerY + 206);
     ctx.stroke();
+  }
+
+  // Crying particles inside the cage (spray + parabolic arcs).
+  if (cageClose > 0.32) {
+    const cryAlpha = clamp((cageClose - 0.32) / 0.68, 0, 1);
+    const cageInnerX = towerX + 52;
+    const cageInnerY = towerY + 86;
+    const cageInnerW = 66;
+    const cageInnerH = 98;
+    const baseT = game.prologueTimer || 0;
+    ctx.save();
+    ctx.globalAlpha = towerAlpha * (0.35 + 0.45 * cryAlpha);
+    // Clip to the cage window so tears stay “inside”.
+    roundRect(cageInnerX, cageInnerY, cageInnerW, cageInnerH, 12);
+    ctx.clip();
+    const emitX = cageInnerX + cageInnerW * 0.55;
+    const emitY = cageInnerY + cageInnerH * 0.34;
+    const g = 0.18; // gravity per frame
+    for (let i = 0; i < 14; i += 1) {
+      const seed = i * 71.7;
+      const life = 68 + (i % 4) * 10;
+      const t2 = (baseT * 1.2 + seed) % life;
+      const p = t2 / life; // 0..1
+
+      // Initial velocity: small spray fan.
+      const fan = -0.8 + (i % 7) * (1.6 / 6); // -0.8..0.8
+      const vx0 = (0.9 + (i % 3) * 0.22) * fan;
+      const vy0 = -(1.6 + (i % 5) * 0.14);
+
+      const tt = t2;
+      const x = emitX + vx0 * tt * 1.9 + Math.sin((baseT + seed) * 0.08) * 1.4;
+      const y = emitY + vy0 * tt + 0.5 * g * tt * tt;
+      if (y > cageInnerY + cageInnerH + 6) {
+        continue;
+      }
+
+      const fade = 1 - p;
+      const r = 2.6 + fade * 1.9;
+      // Brighter “tear” color so it reads at a glance.
+      ctx.fillStyle = `rgba(64, 180, 255, ${0.22 + fade * 0.58})`;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * 0.72, r, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Small highlight to sell the droplet.
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.14 + fade * 0.26})`;
+      ctx.beginPath();
+      ctx.ellipse(x - r * 0.18, y - r * 0.22, r * 0.22, r * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
   ctx.restore();
 
@@ -1499,24 +1600,31 @@ function drawPrologueIntro() {
   }
 
   const captions =
-    t < 0.24
+    t < 0.18
       ? ["提神宇宙的暗黑時代", "曾經的國民霸主，只剩一間苦撐的小廠。"]
-      : t < 0.5
-        ? ["提神聯盟成立", "紅牛帝國掌控天空，魔爪軍團籠罩夜晚。"]
-        : t < 0.78
-          ? ["終極配方遭奪走", "能喚醒疲勞民眾的康貝特200p，被帶往能量巨塔。"]
-          : ["封印完成", "廠長只能用僅存產品當砲彈，先擊碎通路高牆。"];
+      : t < 0.38
+        ? ["大廠夾殺開始", "紅牛壓通路、魔爪搶聲量，你的上架權被擠到角落。"]
+        : t < 0.58
+          ? ["終極配方被封存", "通路被壓到失聲，康貝特200p 被封進巨塔金庫。"]
+          : t < 0.74
+            ? ["任務啟動：拯救康貝特200P", "先擊碎通路高牆，奪回上架權。"]
+            : t < 0.88
+              ? ["操作教學", "A/D 移動 · Space 跳 · Shift 衝刺（可二段跳）"]
+              : ["準備開始", "點一下 / Space / Enter 開始（可略過動畫）"];
 
+  // Subtitles at bottom: keep the tower/cage area clear.
+  const captionsBoxY = 374;
   ctx.fillStyle = "rgba(12, 18, 35, 0.72)";
-  roundRect(118, 36, 724, 76, 26);
+  roundRect(118, captionsBoxY, 724, 76, 26);
   ctx.fill();
   ctx.fillStyle = "#fff7e8";
   ctx.font = "bold 26px Avenir Next, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(captions[0], WIDTH / 2, 72);
+  ctx.fillText(captions[0], WIDTH / 2, captionsBoxY + 36);
   ctx.fillStyle = "rgba(255, 247, 232, 0.82)";
   ctx.font = "15px Avenir Next, sans-serif";
-  ctx.fillText(captions[1], WIDTH / 2, 96);
+  ctx.fillText(captions[1], WIDTH / 2, captionsBoxY + 60);
+  // Keep the prologue UI focused: captions + progress only (avoid stacking extra badges).
 
   const progressX = 230;
   const progressY = 470;
@@ -1570,29 +1678,14 @@ function drawOverlay() {
     ctx.textAlign = "center";
     ctx.fillStyle = palette.stripeBlue;
     ctx.font = "bold 14px Avenir Next, sans-serif";
-    ctx.fillText("準備開始", panelX + panelW / 2, panelY + 58);
 
     ctx.fillStyle = "#16203d";
-    ctx.font = "bold 30px Avenir Next, sans-serif";
-    ctx.fillText("提神宇宙暗黑時代", panelX + panelW / 2, panelY + 104);
-
-    ctx.fillStyle = "#526182";
-    ctx.font = "17px Avenir Next, sans-serif";
-    if (SLINGSHOT_FIRST_ORDER) {
-      ctx.fillText("紅牛帝國與魔爪軍團成立提神聯盟，封印了康貝特200p。", panelX + panelW / 2, panelY + 146);
-      ctx.fillText("先擊碎通路高牆奪回上架權，再攻頂能量巨塔。", panelX + panelW / 2, panelY + 172);
-      ctx.fillText("彈弓砸牆，Boss 戰用 A/D、Space、Shift 殺出重圍。", panelX + panelW / 2, panelY + 198);
-    } else {
-      ctx.fillText("A/D 移動，Space 跳（二段跳），Shift 衝刺。連吃 200P 會 COMBO 加時。", panelX + panelW / 2, panelY + 146);
-      ctx.fillText("先推箱、踩開關、破數量門，再衝進 Boss 區。", panelX + panelW / 2, panelY + 172);
-      ctx.fillText("Boss 對話和插播影片期間，倒數會自動暫停。", panelX + panelW / 2, panelY + 198);
-    }
-    ctx.font = "bold 16px Avenir Next, sans-serif";
-    ctx.fillText("P 暫停  ·  M 聲音  ·  R 重開", panelX + panelW / 2, panelY + 224);
+    ctx.font = "bold 34px Avenir Next, sans-serif";
+    ctx.fillText("拯救康貝特大作戰", panelX + panelW / 2, panelY + 132);
 
     const buttonW = 356;
     const buttonX = panelX + (panelW - buttonW) / 2;
-    const buttonY = panelY + 230;
+    const buttonY = panelY + 190;
     const buttonH = 44;
     const buttonGradient = ctx.createLinearGradient(buttonX, buttonY, buttonX + buttonW, buttonY + buttonH);
     buttonGradient.addColorStop(0, palette.stripeRed);
@@ -1602,8 +1695,8 @@ function drawOverlay() {
     ctx.fill();
 
     ctx.fillStyle = "#fff7e8";
-    ctx.font = "bold 22px Avenir Next, sans-serif";
-    ctx.fillText("點一下或按 Space 開始", buttonX + buttonW / 2, buttonY + 28);
+    ctx.font = "bold 24px Avenir Next, sans-serif";
+    ctx.fillText("開始", buttonX + buttonW / 2, buttonY + 29);
     return;
   }
 
@@ -1646,6 +1739,9 @@ function drawOverlay() {
     ctx.font = "bold 30px Avenir Next, sans-serif";
     ctx.fillText(`${hudSlingStageName()}：擊碎！通路高牆`, panelX + panelW / 2, panelY + 102);
 
+    // Avoid overlapping stage intro body copy: use a corner bug in the header area.
+    drawCornerBug(panelX + panelW - 284, panelY + 26, "康貝特200P", "上架砲彈");
+
     ctx.fillStyle = "#526182";
     ctx.font = "18px Avenir Next, sans-serif";
     const startingShots = game.stageTwo ? game.stageTwo.startingShots : 6;
@@ -1677,12 +1773,15 @@ function drawOverlay() {
     const remaining = Math.max(0, Math.ceil((game.adDuration - game.adTimer) / 60));
     const skippable = game.adTimer >= game.adSkippableAt;
     const adCopy = getDeathAdCopy(game.pendingDeathReason, game.pendingDeathBrand);
+    const adPulse = 0.5 + 0.5 * Math.sin(game.adTimer * 0.06);
+    const adTagline = getAdTagline(game.adTimer + (game.adImpression || 0) * 180);
+    const adBenefits = getAdBenefits(game.adTimer + (game.adImpression || 0) * 240, 4);
 
     ctx.fillStyle = "rgba(9, 14, 28, 0.86)";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
     const bgGlow = ctx.createRadialGradient(720, 110, 40, 720, 110, 320);
-    bgGlow.addColorStop(0, "rgba(255, 124, 32, 0.32)");
+    bgGlow.addColorStop(0, `rgba(255, 124, 32, ${0.22 + adPulse * 0.18})`);
     bgGlow.addColorStop(1, "rgba(255, 124, 32, 0)");
     ctx.fillStyle = bgGlow;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -1704,6 +1803,9 @@ function drawOverlay() {
     ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
     roundRect(56, 48, WIDTH - 112, HEIGHT - 96, 34);
     ctx.fill();
+
+    // Worldbuilding bug: reinforces the rescue target (not a sponsor).
+    drawCornerBug(WIDTH - 332, 74, "目標：康貝特200P", "被封印・待救援");
 
     ctx.fillStyle = palette.stripeBlue;
     roundRect(56, 48, WIDTH - 112, 18, 18);
@@ -1733,46 +1835,32 @@ function drawOverlay() {
     ctx.font = "bold 20px Avenir Next, sans-serif";
     ctx.fillText("康貝特200p：小廠逆襲", 92, 288);
 
+    const footerY = HEIGHT - 146;
+    // Benefit bullets: treat as in-world “補給情報”，and never overlap the footer.
+    const benefitTop = 320;
+    const benefitLineH = 20;
+    const benefitMaxY = footerY - 20;
+    const benefitMaxLines = clamp(Math.floor((benefitMaxY - benefitTop) / benefitLineH), 0, 5);
+    const benefitLines = Array.isArray(adBenefits) ? adBenefits.slice(0, benefitMaxLines) : [];
+    ctx.fillStyle = "#17223e";
+    ctx.font = "bold 13px Avenir Next, sans-serif";
+    ctx.fillText("補給情報", 92, benefitTop - 14);
+    ctx.fillStyle = "#4d5c7c";
+    ctx.font = "14px Avenir Next, sans-serif";
+    for (let i = 0; i < benefitLines.length; i += 1) {
+      ctx.fillText(benefitLines[i], 92, benefitTop + i * benefitLineH);
+    }
+
     if (canDrawImage(art.product)) {
       ctx.save();
       ctx.shadowColor = "rgba(17, 20, 43, 0.24)";
       ctx.shadowBlur = 18;
-      ctx.drawImage(art.product, 684, 102, 124, 282);
+      const bob = Math.sin(game.adTimer * 0.04) * 3;
+      ctx.drawImage(art.product, 684, 102 + bob, 124, 282);
       ctx.restore();
     }
 
-    const progressX = 92;
-    const progressY = 320;
-    const progressW = 340;
-    const overallRatio = clamp(game.adTimer / game.adDuration, 0, 1);
-    const skipRatio = clamp(game.adTimer / game.adSkippableAt, 0, 1);
-
-    ctx.fillStyle = "rgba(12, 18, 35, 0.12)";
-    roundRect(progressX, progressY, progressW, 12, 6);
-    ctx.fill();
-    const adGradient = ctx.createLinearGradient(progressX, progressY, progressX + progressW, progressY);
-    adGradient.addColorStop(0, palette.stripeBlue);
-    adGradient.addColorStop(1, palette.stripeOrange);
-    ctx.fillStyle = adGradient;
-    roundRect(progressX, progressY, progressW * overallRatio, 12, 6);
-    ctx.fill();
-    ctx.fillStyle = "#526182";
-    ctx.font = "bold 13px Avenir Next, sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText("插播進度", progressX, progressY - 8);
-
-    ctx.fillStyle = "rgba(12, 18, 35, 0.12)";
-    roundRect(progressX, progressY + 28, progressW, 10, 5);
-    ctx.fill();
-    ctx.fillStyle = skippable ? "#9bff8a" : "#ffd166";
-    roundRect(progressX, progressY + 28, progressW * Math.min(skipRatio, 1), 10, 5);
-    ctx.fill();
-    ctx.fillStyle = "#526182";
-    ctx.font = "12px Avenir Next, sans-serif";
-    ctx.fillText(skippable ? "已可略過" : "略過解鎖中", progressX, progressY + 54);
-
     const footerX = 92;
-    const footerY = HEIGHT - 146;
     const footerW = WIDTH - 184;
     const footerH = 62;
     const footerGradient = ctx.createLinearGradient(footerX, footerY, footerX + footerW, footerY + footerH);
@@ -1787,10 +1875,13 @@ function drawOverlay() {
     ctx.font = "bold 26px Avenir Next, sans-serif";
     ctx.fillText("休息一下，馬上回來", WIDTH / 2, footerY + 39);
 
+    // CTA + rotating slogan just below the main footer.
     ctx.fillStyle = "#6d7694";
     ctx.font = "16px Avenir Next, sans-serif";
+    ctx.fillText(adTagline, WIDTH / 2, footerY + 86);
+    ctx.font = "15px Avenir Next, sans-serif";
     ctx.fillText(
-      skippable ? `按 Space 或點一下返回，${remaining} 秒後也會回到遊戲` : `再等 ${remaining} 秒就回到遊戲`,
+      skippable ? `按 Space / Enter / 點一下返回（${remaining} 秒後也會自動回到遊戲）` : `再等 ${remaining} 秒就回到遊戲`,
       WIDTH / 2,
       HEIGHT - 52
     );
@@ -1841,13 +1932,17 @@ function drawOverlay() {
     return;
   }
 
+  // Avoid overlapping with Stage 2 HUD center pills (and Stage 1 warning pills).
+  const overlayY =
+    game.state === "stage2Playing" ? 94 : game.state === "running" ? 154 : 22;
+
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(12, 18, 35, 0.28)";
-  roundRect(WIDTH / 2 - 150, 22, 300, 46, 18);
+  roundRect(WIDTH / 2 - 150, overlayY, 300, 46, 18);
   ctx.fill();
   ctx.fillStyle = "#fff6e4";
   ctx.font = "bold 20px Avenir Next, sans-serif";
-  ctx.fillText(game.overlayText, WIDTH / 2, 52);
+  ctx.fillText(game.overlayText, WIDTH / 2, overlayY + 30);
 
   if (game.state === "won" || game.state === "gameover") {
     if (game.state === "won") {
@@ -2031,7 +2126,7 @@ function drawEndingRescueScene() {
 
   ctx.fillStyle = "rgba(255, 255, 255, 0.62)";
   ctx.font = "600 13px Avenir Next, sans-serif";
-  ctx.fillText("MONOPOLY BROKEN · FORMULA RESCUED", WIDTH / 2, 54);
+  ctx.fillText("壟斷結界碎裂 · 傳說配方回歸", WIDTH / 2, 54);
 
   ctx.fillStyle = "#fff7e8";
   ctx.font = "bold 30px Avenir Next, sans-serif";
@@ -2101,16 +2196,18 @@ function drawResultPanel() {
 
   ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
   ctx.font = "14px Avenir Next, sans-serif";
-    const subtitle = isWin
-      ? game.stage === 2
+  const subtitle = isWin
+    ? game.stage === 2
       ? SLINGSHOT_FIRST_ORDER
         ? "通路高牆碎裂 · 能量之巔決戰 · 200p獲救"
         : "能量之巔決戰 · 通路高牆碎裂 · 200p獲救"
       : level.goal
-        ? `${hudBossStageName()}過關`
-        : "Energy Tower Clear"
-    : "Game Over";
+        ? `${hudBossStageName()}金庫開啟`
+        : "能量巨塔解放"
+    : "逆襲暫時受阻";
   ctx.fillText(subtitle, WIDTH / 2, panelY + 92);
+
+  drawCornerBug(panelX + panelW - 270, panelY + 24, "康貝特200P", isWin ? "喝了再上" : "補能再上");
 
   if (isWin && game.stageOneRating > 0) {
     drawResultStars(game.stageOneRating, WIDTH / 2, panelY + 134);
@@ -2208,6 +2305,12 @@ function drawResultPanel() {
   ctx.fillText(`BUILD ${BUILD_ID}`, 18, HEIGHT - 12);
 
   const replayButton = getReplayButtonRect();
+  drawPillSticker(WIDTH / 2, replayButton.y - 18, getAdTagline(game.elapsed), {
+    fill: "rgba(12, 18, 35, 0.5)",
+    stroke: "rgba(255,255,255,0.12)",
+    font: "bold 12px Avenir Next, sans-serif",
+    h: 26,
+  });
   const replayGradient = ctx.createLinearGradient(
     replayButton.x,
     replayButton.y,
@@ -2227,7 +2330,10 @@ function drawResultPanel() {
 
   ctx.fillStyle = "#fff7e8";
   ctx.font = "bold 22px Avenir Next, sans-serif";
-  ctx.fillText("點一下再玩一次", WIDTH / 2, replayButton.y + replayButton.h / 2 + 8);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("點一下再玩一次", WIDTH / 2, replayButton.y + replayButton.h / 2);
+  ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "rgba(255, 255, 255, 0.62)";
   ctx.font = "13px Avenir Next, sans-serif";
   ctx.fillText("也可以按 Space、Enter 或 R 直接重跑", WIDTH / 2, replayButton.y + replayButton.h + 24);
@@ -2319,7 +2425,7 @@ function _legacyDrawResultPanel_unused() {
           ? "壟斷結界碎裂"
           : level.goal
             ? "金庫開啟"
-            : "Boss 擊破"
+            : "提神聯盟擊破"
         : "精神值見底",
       WIDTH / 2,
       218
@@ -2352,7 +2458,7 @@ function _legacyDrawResultPanel_unused() {
         252
       );
       ctx.fillText(
-        `${hudSlingStageName()}砸出 ${game.stageTwo ? game.stageTwo.score : 0} 分，競品全部清場。`,
+        `${hudSlingStageName()}砸出 ${game.stageTwo ? game.stageTwo.score : 0} 分，通路封鎖清場。`,
         WIDTH / 2,
         286
       );
@@ -2362,16 +2468,16 @@ function _legacyDrawResultPanel_unused() {
         game.state === "won"
           ? `你補了 ${game.coins} 罐 200p，終極配方重回市場。`
           : game.stage === 2
-            ? `${hudSlingStageName()}彈藥打完了，再按 R 或 Restart 重跑一次。`
-            : "再喝一口，再按 R 或 Restart 重跑一次。",
+            ? `${hudSlingStageName()}彈藥打完了，再按 R 重新奪回上架權。`
+            : "再喝一口，再按 R 重新逆襲。",
         WIDTH / 2,
         260
       );
       ctx.fillText(
         game.state === "won"
-          ? "廣告詞候選：康貝特200p，小廠逆襲，喝了再上。"
-          : game.stage === 2
-            ? "這局砸歪了，但競品看起來還是很欠揍。"
+          ? "康貝特200p：小廠逆襲，喝了再上。"
+        : game.stage === 2
+            ? "這局砸歪了，通路封鎖還差最後一點。"
             : "提神宇宙還沒亮起，這局只是暫停。",
         WIDTH / 2,
         296
@@ -2393,25 +2499,42 @@ function _legacyDrawResultPanel_unused() {
 
     ctx.fillStyle = "#fff7e8";
     ctx.font = "bold 24px Avenir Next, sans-serif";
-    ctx.fillText("點一下再玩一次", WIDTH / 2, replayButton.y + 30);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("點一下再玩一次", WIDTH / 2, replayButton.y + replayButton.h / 2);
+    ctx.textBaseline = "alphabetic";
   }
 }
 
 function render() {
   if (game.state === "prologue") {
+    syncDebugHudButtonsVisibility();
     drawPrologueIntro();
-    drawAudioToggle();
+    // Ensure touch chrome never lingers on top of cutscenes.
+    syncMobileControlsVisibility();
     return;
   }
 
   if (game.state === "ending") {
+    syncDebugHudButtonsVisibility();
     drawEndingRescueScene();
     drawSceneTransition();
     drawAudioToggle();
     return;
   }
 
+  // Intro screen should be a clean UI backdrop (no live gameplay scene behind it).
+  if (game.state === "intro") {
+    syncDebugHudButtonsVisibility();
+    drawIntroBackdrop();
+    syncMobileControlsVisibility();
+    drawOverlay();
+    drawAudioToggle();
+    return;
+  }
+
   if (game.stage === 2) {
+    syncDebugHudButtonsVisibility();
     drawStageTwoScene();
 
     if (game.state === "stage2Playing") {
@@ -2429,6 +2552,7 @@ function render() {
     return;
   }
 
+  syncDebugHudButtonsVisibility();
   drawBackground();
 
   ctx.save();
@@ -2470,6 +2594,57 @@ function render() {
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
   }
   drawAudioToggle();
+}
+
+function drawIntroBackdrop() {
+  const gradient = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  gradient.addColorStop(0, "rgba(189, 230, 255, 0.98)");
+  gradient.addColorStop(1, "rgba(255, 240, 202, 0.98)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  // Soft brand-toned geometric shapes (static; no gameplay elements).
+  ctx.fillStyle = "rgba(25, 70, 184, 0.12)";
+  ctx.beginPath();
+  ctx.moveTo(0, 180);
+  ctx.lineTo(190, 112);
+  ctx.lineTo(390, 186);
+  ctx.lineTo(0, 278);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(239, 42, 62, 0.10)";
+  ctx.beginPath();
+  ctx.moveTo(602, 0);
+  ctx.lineTo(920, 0);
+  ctx.lineTo(960, 134);
+  ctx.lineTo(770, 178);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 124, 32, 0.10)";
+  ctx.beginPath();
+  ctx.moveTo(596, 356);
+  ctx.lineTo(960, 296);
+  ctx.lineTo(960, 540);
+  ctx.lineTo(712, 540);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  ctx.beginPath();
+  ctx.arc(764, 110, 58, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function syncDebugHudButtonsVisibility() {
+  const shouldHide = game.state === "intro" || game.state === "prologue";
+  if (skipButton) {
+    skipButton.style.display = shouldHide ? "none" : "";
+  }
+  if (killBossButton) {
+    killBossButton.style.display = shouldHide ? "none" : "";
+  }
 }
 
 let lastTime = 0;
@@ -2653,17 +2828,17 @@ function skipToNextStage() {
     if (!level.goal) {
       game.stageOneRating = computeStageOneRating();
       startEndingRescueScene();
-      game.overlayText = "測試跳關：直接結束 Boss 戰";
+      game.overlayText = "測試跳段：直接解放能量巨塔";
       soundFx.win();
       updateHud();
       return;
     }
     if (SLINGSHOT_FIRST_ORDER) {
       startEndingRescueScene();
-      game.overlayText = "測試跳關：直接結局";
+      game.overlayText = "測試跳段：直接進結局";
     } else {
       enterStageTwo();
-      game.overlayText = "測試跳關：直接進第二關";
+      game.overlayText = "測試跳段：直接進第二階段";
     }
     soundFx.win();
     updateHud();
@@ -2677,10 +2852,10 @@ function skipToNextStage() {
     game.stageTwo.score = Math.max(game.stageTwo.score, 480);
     if (SLINGSHOT_FIRST_ORDER) {
       enterBossStageFromSlingshot();
-      game.overlayText = "測試跳關：直接進 Boss 戰";
+      game.overlayText = "測試跳段：直接攻頂能量巨塔";
     } else {
       startEndingRescueScene();
-      game.overlayText = "測試跳關：直接結局";
+      game.overlayText = "測試跳段：直接進結局";
     }
     soundFx.win();
     updateHud();
