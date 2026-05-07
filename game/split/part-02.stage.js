@@ -101,7 +101,7 @@ function resetRun() {
   game.checkpoint = { x: level.spawn.x, y: level.spawn.y };
   game.checkpointLabel = "起點";
   game.overlayTimer = 0;
-  game.overlayText = "點一下或按 Space 開始";
+  game.overlayText = "點一下進入提神宇宙";
   game.flashTimer = 0;
   game.timeBoostEarned = 0;
   game.adTimer = 0;
@@ -146,11 +146,11 @@ function getDeathAdCopy(reason, brand) {
       kicker: "競品碰撞實測",
       headline: "有翅膀沒錯，但你先摔下去了",
       lines: [
-        "紅牛飛得起來，你的作業不一定。",
-        "提神感受先不提，精神值是真的歸零。",
-        "還是回來喝 200P，比較像在救火。",
+        "極限狂牛掌控天空與速度，但不會幫你奪回貨架。",
+        "資本很大，撞到你的精神值也是真的歸零。",
+        "回到康貝特200p，小廠逆襲還沒結束。",
       ],
-      gameOverText: "被紅牛撞到斷電",
+      gameOverText: "被極限狂牛撞到斷電",
     };
   }
 
@@ -159,35 +159,35 @@ function getDeathAdCopy(reason, brand) {
       kicker: "競品碰撞實測",
       headline: "魔爪很兇，你的進度先被抓走",
       lines: [
-        "氣勢很滿，不代表報告會自己寫完。",
-        "帥是帥，期末先活下來比較重要。",
-        "回來補 200P，至少像真的在續命。",
+        "深淵魔爪的能量網罩住夜晚，也罩住你的路線。",
+        "潮流很兇，但上架權還是要靠你砸回來。",
+        "回來補 200p，繼續攻頂能量巨塔。",
       ],
-      gameOverText: "被魔爪抓到當機",
+      gameOverText: "被深淵魔爪抓到當機",
     };
   }
 
   if (reason === "time") {
     return {
-      kicker: "截止時間已到",
-      headline: "廣告先看，交件剛剛已經先飛走",
+      kicker: "壟斷倒數歸零",
+      headline: "市場壟斷令先把你送回起點",
       lines: [
-        "時間比疲勞還狠，直接把你送去重來。",
-        "咖啡因再多，deadline 還是不會等等你。",
-        "下次早點補 200P，別讓時程先爆掉。",
+        "時間比疲勞還狠，通路封鎖不會等小廠喘氣。",
+        "外商資本再亮，民眾疲憊仍然需要高CP值解法。",
+        "下次早點補 200p，別讓市場視野先被封死。",
       ],
-      gameOverText: "截止時間到了",
+      gameOverText: "壟斷倒數歸零",
     };
   }
 
   if (reason === "fall") {
     return {
       kicker: "腳步失誤",
-      headline: "人還沒交件，先從平台滑下去了",
+      headline: "廠長還沒救到配方，先從巨塔滑下去了",
       lines: [
         "手滑可以理解，精神值一起下去就有點痛。",
-        "再強的飲料，也接不住這個失足瞬間。",
-        "喝口 200P，重整一下再衝一次。",
+        "再強的配方，也接不住這個失足瞬間。",
+        "喝口 200p，重整一下再衝一次。",
       ],
       gameOverText: "失足掉下去了",
     };
@@ -197,11 +197,11 @@ function getDeathAdCopy(reason, brand) {
     kicker: "精神值歸零",
     headline: "先看一下廣告，再把狀態拉回來",
     lines: [
-      "剛剛那口沒救到你，這次換 200P 上場。",
+      "剛剛那口沒救到你，這次換 200p 上場。",
       "7 種維他命 + 胺基酸 + 牛磺酸。",
       "活力氣泡，清爽順口好喝。",
     ],
-    gameOverText: "精神值歸零",
+    gameOverText: "逆襲暫停",
   };
 }
 
@@ -270,12 +270,12 @@ function updateHud() {
         : game.state === "gameover"
           ? `${s1}失手`
           : game.state === "stage2Intro"
-            ? "點一下進場，再拖曳 200P"
+            ? "擊碎通路高牆"
             : game.stageTwo.dragging
               ? `${s1} 拉力 ${pullPercent}%`
               : game.stageTwo.shotsLeft === 1
-                ? `${s1} 最後一發，瞄準一點`
-            : `${s1} ${clearedPercent}% 已清場`;
+                ? `${s1} 最後一發上架砲彈`
+            : `通路破壞 ${clearedPercent}%`;
     coinsPill.textContent = `彈藥 ${game.stageTwo.shotsLeft}`;
     livesPill.textContent = `目標 ${targetsLeft}`;
     timerPill.textContent = `分數 ${game.stageTwo.score}`;
@@ -290,17 +290,17 @@ function updateHud() {
     game.state === "paused"
       ? `${bn}已暫停`
       : game.state === "won"
-      ? "作業交件成功"
+      ? "200p重見天日"
       : game.state === "gameover"
-        ? "衝刺失敗"
+        ? "逆襲失敗"
         : game.state === "ad"
           ? "休息一下，馬上回來"
         : game.state === "intro"
           ? SLINGSHOT_FIRST_ORDER
-            ? "點一下開始：第一關彈弓清場"
-            : "點一下或按 Space 開始"
+            ? "點一下進入提神宇宙"
+            : "點一下開始攻頂"
           : isNearBossArena()
-            ? "前方 Boss 區，踩穩再進"
+            ? "前方能量巨塔，踩穩再進"
           : `${game.checkpointLabel} ${stageOnePercent}%`;
   coinsPill.textContent = `200P ${game.coins} / ${game.totalCoins}`;
   livesPill.textContent = `精神值 ${game.lives}`;
@@ -1070,7 +1070,7 @@ function spawnBossMinions(boss, count) {
   const spawnCount = Math.min(Math.max(0, count), Math.max(0, room));
   if (spawnCount <= 0) return;
   const minionBrand = boss.secondFormActive
-    ? boss.secondFormBrand || boss.transformToBrand || "redbull"
+    ? boss.secondFormBrand || boss.transformToBrand || "monster"
     : boss.brand || "monster";
   const speedMag = 1.85 * STAGE_ONE_DIFFICULTY.enemySpeedMultiplier;
   for (let i = 0; i < spawnCount; i += 1) {
@@ -1214,7 +1214,7 @@ function updateBossAi(enemy, player, frameScale) {
     enemy.phase = "transform";
     enemy.tellTimer = Math.max(enemy.tellTimer ?? 0, 10);
     if (nextTransformBucket < prevTransformBucket) {
-      spawnBossBurst(enemy.x + enemy.w / 2, enemy.y + enemy.h * 0.42, enemy.transformToBrand || enemy.secondFormBrand || "redbull", 10, {
+      spawnBossBurst(enemy.x + enemy.w / 2, enemy.y + enemy.h * 0.42, enemy.transformToBrand || enemy.secondFormBrand || "monster", 10, {
         angle: -Math.PI / 2,
         spread: Math.PI * 1.25,
         speed: 4.8,
@@ -1237,7 +1237,7 @@ function updateBossAi(enemy, player, frameScale) {
       enemy.actionCooldown = 120;
       enemy.tellTimer = 16;
       triggerStageOneShake(5.2);
-      spawnStageOnePopup("紅牛接手！", enemy.x + enemy.w / 2, enemy.y - 16, "#ffd166");
+      spawnStageOnePopup("深淵魔爪降臨！", enemy.x + enemy.w / 2, enemy.y - 16, "#9bff8a");
       spawnBossBurst(enemy.x + enemy.w / 2, enemy.y + enemy.h * 0.42, enemy.brand, 24, {
         angle: -Math.PI / 2,
         spread: Math.PI * 1.6,
@@ -1674,7 +1674,7 @@ function stompBossFromPlayer(enemy, player) {
   enemy.hp = (enemy.hp ?? 1) - 1;
   const firstFormBroken = enemy.hp <= 0 && !enemy.secondFormActive;
   const bossWillFall = enemy.hp <= 0 && enemy.secondFormActive;
-  const impactBrand = firstFormBroken ? enemy.secondFormBrand || "redbull" : enemy.brand;
+  const impactBrand = firstFormBroken ? enemy.secondFormBrand || "monster" : enemy.brand;
   enemy.squashTimer = 8;
   player.vy = -13.4;
   player.jumpsRemaining = 2;
@@ -1684,9 +1684,9 @@ function stompBossFromPlayer(enemy, player) {
   triggerStageOneShake(6);
   spawnStageOnePopup(
     firstFormBroken
-      ? "魔爪退場，紅牛上場！"
+      ? "極限狂牛倒下，深淵魔爪降臨！"
       : bossWillFall
-        ? "BOSS DOWN!"
+        ? "提神聯盟崩解！"
         : `BOSS -1（剩 ${enemy.hp}）`,
     enemy.x + enemy.w / 2,
     enemy.y - 8,
@@ -1709,7 +1709,7 @@ function stompBossFromPlayer(enemy, player) {
   soundFx.stomp();
   if (firstFormBroken) {
     triggerStageOneShake(9.5);
-    spawnBossBurst(enemy.x + enemy.w / 2, enemy.y + enemy.h * 0.4, enemy.secondFormBrand || "redbull", 34, {
+    spawnBossBurst(enemy.x + enemy.w / 2, enemy.y + enemy.h * 0.4, enemy.secondFormBrand || "monster", 34, {
       angle: -Math.PI / 2,
       spread: Math.PI * 1.5,
       speed: 6.6,
@@ -1735,7 +1735,7 @@ function stompBossFromPlayer(enemy, player) {
     enemy.transformTimer = BOSS_PHASE_SHIFT_FRAMES;
     enemy.transformTotal = BOSS_PHASE_SHIFT_FRAMES;
     enemy.transformFromBrand = enemy.brand;
-    enemy.transformToBrand = enemy.secondFormBrand || "redbull";
+    enemy.transformToBrand = enemy.secondFormBrand || "monster";
     player.invincible = Math.max(player.invincible, 24);
     if (level.bossProjectiles) level.bossProjectiles.length = 0;
     if (level.bossShockwaves) level.bossShockwaves.length = 0;
@@ -1746,7 +1746,7 @@ function stompBossFromPlayer(enemy, player) {
       }
     });
     game.overlayTimer = 108;
-    game.overlayText = "紅牛變身中，準備第二回合！";
+    game.overlayText = "深淵魔爪降臨，準備第二回合！";
     soundFx.bossPhaseShift();
     startBossPhaseShiftCutscene();
   } else if (bossWillFall) {
@@ -1980,7 +1980,7 @@ function drawBossIntroSpeakerPortrait(panelY, cs) {
     const boss = getStageOneBoss();
     const portraitBrand =
       cs.phase === "phaseShift"
-        ? boss?.secondFormBrand || boss?.transformToBrand || "redbull"
+        ? boss?.secondFormBrand || boss?.transformToBrand || "monster"
         : boss?.brand || "monster";
     const img = getEnemyImageForBrand(portraitBrand);
     const drawH = 278;
@@ -2308,8 +2308,8 @@ function finishBossIntroCutscene() {
   STAGE_ONE_FX.cameraZoomTarget = 1;
   game.player.invincible = Math.max(game.player.invincible ?? 0, 60);
   game.overlayTimer = 84;
-  game.overlayText = "開打！先閃再踩";
-  spawnStageOnePopup("開打！", game.player.x + game.player.w / 2, game.player.y - 20, "#ffd166");
+  game.overlayText = "決戰能量之巔：先閃再踩";
+  spawnStageOnePopup("決戰開打！", game.player.x + game.player.w / 2, game.player.y - 20, "#ffd166");
   soundFx.coin();
 }
 
@@ -2403,7 +2403,7 @@ function updateBossIntroCutscene(frameScale) {
       game.pendingStageTransition = SLINGSHOT_FIRST_ORDER ? "toEndingAfterBoss" : "stage2";
       game.pendingStageTransitionTimer = Math.max(game.pendingStageTransitionTimer ?? 0, 36);
       game.overlayTimer = 108;
-      game.overlayText = SLINGSHOT_FIRST_ORDER ? "勝利！準備結局演出" : "勝利！準備進第二關";
+      game.overlayText = SLINGSHOT_FIRST_ORDER ? "提神聯盟崩解，準備拯救200p" : "勝利！準備進第二階段";
     }
     return;
   }
@@ -2494,30 +2494,30 @@ function drawBossIntroCutscene() {
   let accent = "#526182";
 
   if (cs.phase === "bossZoom") {
-    speaker = "魔爪 (Boss)";
-    line = "（鏡頭拉近——冷藏王座前）";
+    speaker = "極限狂牛 (Boss)";
+    line = "（鏡頭拉近——能量巨塔頂端金庫前）";
     accent = "#ef2a3e";
   } else if (cs.phase === "phaseShift") {
-    speaker = "紅牛 (Boss)";
-    line = "「魔爪還是太爛了。換我紅牛來對付你。」";
-    accent = "#ef2a3e";
+    speaker = "深淵魔爪 (Boss)";
+    line = "「紅牛帝國竟然倒下了？那就讓夜晚與電競能量網把你吞掉。」";
+    accent = "#55f06a";
   } else if (cs.phase === "exchangeTalk") {
     const turn = getBossIntroTurn(cs);
-    speaker = turn?.speaker === "player" ? "康貝特200P (主角)" : "魔爪 (Boss)";
+    speaker = turn?.speaker === "player" ? "康貝特年輕廠長 (主角)" : "極限狂牛 (Boss)";
     line = turn?.line ?? "";
     accent = turn?.speaker === "player" ? "#1c6fd4" : "#ef2a3e";
   } else if (cs.phase === BOSS_INTRO_VIDEO_PHASE) {
-    speaker = "康貝特200P (主角)";
-    line = "「喝了再上。」";
+    speaker = "康貝特年輕廠長 (主角)";
+    line = "「為了被封印的康貝特200p，喝了再上。」";
     accent = "#1c6fd4";
   } else if (cs.phase === "victory") {
     const turn = BOSS_VICTORY_EXCHANGE[cs.talkIdx] ?? BOSS_VICTORY_EXCHANGE[BOSS_VICTORY_EXCHANGE.length - 1];
-    speaker = "康貝特200P (主角)";
+    speaker = "康貝特年輕廠長 (主角)";
     line = turn?.line ?? "「喝了再上！」";
     accent = "#ff7b20";
   } else if (cs.phase === "outro") {
-    speaker = "對線結束";
-    line = "嘴上勝負先到這——拳腳跟罐數見真章！";
+    speaker = "提神聯盟警報";
+    line = "能量巨塔封鎖解除，決戰正式開始。";
     accent = "#ff7b20";
   }
 
@@ -2624,17 +2624,17 @@ function updateGoal() {
     if (isStageOneGoalLocked()) {
       if ((game.overlayTimer ?? 0) <= 0) {
         game.overlayTimer = 60;
-        game.overlayText = "先把 BOSS 解決才能交件！";
+        game.overlayText = "先擊破提神聯盟，才能打開200p金庫！";
       }
       return;
     }
     game.stageOneRating = computeStageOneRating();
     if (SLINGSHOT_FIRST_ORDER) {
       startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
-      game.overlayText = `第二關過關，收了 ${game.coins} 罐`;
+      game.overlayText = `能量之巔通關，收回 ${game.coins} 罐`;
     } else {
       enterStageTwo();
-      game.overlayText = `第一關過關，收了 ${game.coins} 罐`;
+      game.overlayText = `第一階段過關，收回 ${game.coins} 罐`;
     }
     soundFx.win();
   }
@@ -2642,6 +2642,12 @@ function updateGoal() {
 
 function step(frameScale) {
   updateSceneTransition(frameScale);
+
+  if (game.state === "prologue") {
+    updatePrologueIntro(frameScale);
+    updateHud();
+    return;
+  }
 
   // Stage 2 fail-safe: if targets are cleared, always finish (even if we entered stage 2 via debug skip).
   if (
@@ -2767,7 +2773,7 @@ function step(frameScale) {
     if (isNearBossArena() && !game.bossWarningShown) {
       game.bossWarningShown = true;
       game.overlayTimer = 110;
-      game.overlayText = "前方 Boss 區，站穩再進就會開打";
+      game.overlayText = "前方能量巨塔頂端，站穩再進就會開打";
     }
     if (!isStageOneTimerPaused()) {
       game.elapsed += frameScale / 60;

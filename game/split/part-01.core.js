@@ -10,11 +10,11 @@ const BUILD_ID = "20260510-mobile-canvas-sharp";
 const SLINGSHOT_FIRST_ORDER = true;
 
 function hudSlingStageName() {
-  return SLINGSHOT_FIRST_ORDER ? "第一關" : "第二關";
+  return SLINGSHOT_FIRST_ORDER ? "第一階段" : "第二階段";
 }
 
 function hudBossStageName() {
-  return SLINGSHOT_FIRST_ORDER ? "第二關" : "第一關";
+  return SLINGSHOT_FIRST_ORDER ? "第二階段" : "第一階段";
 }
 
 /** 手機／高分螢幕提高清晰度：較高 DPR 上限 + 像素對齊避免糊邊 */
@@ -101,6 +101,7 @@ const BOSS_INTRO_BOUNCE_DURATION = 17;
 const BOSS_INTRO_VIDEO_PHASE = "playerVideo";
 const BOSS_PHASE_SHIFT_CUTSCENE_FRAMES = 210;
 const BOSS_VICTORY_CUTSCENE_FRAMES = 420;
+const PROLOGUE_TOTAL_FRAMES = 390;
 const ENDING_RESCUE_TOTAL_FRAMES = 390;
 const ENDING_RESCUE_WALK_FRAMES = 116;
 const ENDING_RESCUE_REUNION_START = 150;
@@ -114,14 +115,14 @@ const BOSS_RISING_STOMP_BAND = 22;
 const BOSS_RISING_STOMP_CENTER_INSET = 6;
 const HIDDEN_BOSS_SKIP_KEY = "Backquote";
 const BOSS_INTRO_LINES_BOSS = [
-  "「能一路殺到我的冷藏王座前，我該誇獎你的韌性嗎？康貝特。看看你，為了迎戰我，甚至褪去了那身沉重的玻璃外殼，換上了和我一樣的鋁罐武裝。但這改變不了你只是個『舊時代勞工補給品』的事實！在這極限運動與電競稱霸的新世界，我才是唯一的真理！」",
-  "「無知的挑戰者！你根本不懂什麼叫真正的力量！我體內流淌著瓜拿納、牛磺酸與極限咖啡因的狂暴血液，我的存在就是為了『釋放野性 (Unleash the Beast)』！當我的碳酸氣泡直衝腦門的那一刻，能瞬間撕裂人類感官的極限！而你那股溫吞的藥水味，連給我塞牙縫都不配！」",
-  "「那就用你的廢鐵裝甲來證明吧！我要用最純粹的美式爆發力，把你這自以為是的台式情懷徹底碾碎！受死吧，時代的眼淚！」",
+  "「能闖上能量巨塔，你這間邊緣小廠還算有骨氣。可惜通路、速度、天空，全都在紅牛帝國的資本版圖裡。康貝特，你的上架權早就被我們買斷了。」",
+  "「我們和魔爪軍團成立提神聯盟，市場壟斷令已經生效。你們那瓶終極配方『康貝特200p』，只配被封在塔頂金庫，永遠變成舊時代標本！」",
+  "「上班族、學生、基層勞工的疲憊不值錢，值錢的是我們包裝過的菁英速度。想救配方？先從我的極限狂牛衝撞下活下來！」",
 ];
 const BOSS_INTRO_LINES_PLAYER = [
-  "「新世界？你所謂的統治，不過是靠著過量的糖水和打氣筒般的二氧化碳，製造出來的『短暫亢奮』罷了！我換上這身鋁罐裝甲，不是為了模仿你，而是為了將我體內高濃度的多種胺基酸與維生素B群，以最輕量化、最具破壞力的方式全數爆發！魔爪，你的帝國今天就要終結！」",
-  "「瞬間的極限又怎樣？煙火再絢爛，也只有一瞬間的壽命！真正的強大，是撐過地獄般的消耗後，依然能站著揮出最後一拳！我體內這200P的極致馬力，是經歷幾十年淬鍊的黃金比例！你那短暫的暴走，根本無法擊穿我深不見底的修復力與持久續航！」",
-  "「時代的眼淚？不，這叫世代傳承的硬底子！不管對手是誰，不管世界怎麼變，只要引擎還有最後一滴油，我就會讓你見識到什麼是真正的——喝、了、再、上！！！」",
+  "「你們買斷貨架，卻買不走民眾真正需要的底氣。康貝特不是豪華招牌，是累到快倒的人還能再站起來的那一口。」",
+  "「200p 不該被封印在你們的能量巨塔，它是本土小廠的心臟，也是高 CP 值提神的證明。今天我來奪回上架權，也奪回被壟斷的市場視野！」",
+  "「紅牛、魔爪一起來也一樣。只要生產線還能轟鳴，只要有人還在撐，我就會把康貝特200p帶回大街小巷——喝、了、再、上！」",
 ];
 const BOSS_INTRO_EXCHANGE = [
   { speaker: "boss", line: BOSS_INTRO_LINES_BOSS[0] },
@@ -134,14 +135,14 @@ const BOSS_INTRO_EXCHANGE = [
 
 const BOSS_VICTORY_EXCHANGE = SLINGSHOT_FIRST_ORDER
   ? [
-      { speaker: "player", line: "「呼——堡壘早清空了，Boss 這拳拳到肉。」" },
-      { speaker: "player", line: "「彈弓開路、腳下收尾——這才叫全線通關。」" },
-      { speaker: "player", line: "「喝了再上——最後一局，直接結帳！」" },
+      { speaker: "player", line: "「通路高牆碎了，能量巨塔也倒了。」" },
+      { speaker: "player", line: "「學生和上班族的疲憊，不該只剩外商能定價。」" },
+      { speaker: "player", line: "「康貝特200p，回到大家手上的時間到了！」" },
     ]
   : [
-      { speaker: "player", line: "「呼——搞定。壓力沒了，腦袋反而更清醒。」" },
-      { speaker: "player", line: "「剩下的就用彈弓收工，把競品堡壘清到一塊不剩。」" },
-      { speaker: "player", line: "「喝了再上——這次是最後衝刺！」" },
+      { speaker: "player", line: "「能量巨塔破口打開了。」" },
+      { speaker: "player", line: "「接下來就砸碎通路封鎖，奪回上架權。」" },
+      { speaker: "player", line: "「康貝特200p，準備重見天日！」" },
     ];
 const DEATH_AD_DURATION = 360;
 const DEATH_AD_SKIP_AT = 90;
@@ -1448,9 +1449,9 @@ function buildLevel() {
       alive: true,
       squashTimer: 0,
       label: "終",
-      brand: "monster",
-      baseBrand: "monster",
-      secondFormBrand: "redbull",
+      brand: "redbull",
+      baseBrand: "redbull",
+      secondFormBrand: "monster",
       secondFormActive: false,
       formHp: 5,
       transformTimer: 0,
@@ -1675,6 +1676,7 @@ const game = {
   sceneTransition: null,
   winFx: null,
   finalVictoryVideo: null,
+  prologueTimer: 0,
   stageTwoClearedAt: null,
   stageTwoClearedFrames: 0,
   stageTwoClearHandled: false,
@@ -1689,7 +1691,7 @@ const game = {
   checkpoint: { x: level.spawn.x, y: level.spawn.y },
   checkpointLabel: "起點",
   overlayTimer: 0,
-  overlayText: "點一下或按 Space 開始",
+  overlayText: "點一下進入提神宇宙",
   flashTimer: 0,
   timeBoostEarned: 0,
   adTimer: 0,
@@ -1713,13 +1715,6 @@ const game = {
   endingScene: null,
 };
 
-// If we want slingshot-first, skip the "two stages" intro panel entirely and
-// drop the player straight into the slingshot stage intro screen.
-if (SLINGSHOT_FIRST_ORDER) {
-  enterStageTwo();
-  game.overlayTimer = 0;
-}
-
 function enterWonResults() {
   if (game.stageTwo) {
     game.stage = 2;
@@ -1727,7 +1722,7 @@ function enterWonResults() {
   game.state = "won";
   game.winFx = createWinFx();
   game.overlayTimer = 9999;
-  game.overlayText = "成功救到康貝特 200P！";
+  game.overlayText = "康貝特200p 重見天日！";
   soundFx.win();
   updateHud();
 }
@@ -1738,22 +1733,23 @@ const SCENE_TR_BOSS_TO_STAGE2 = {
   outFrames: 48,
   holdFrames: 26,
   inFrames: 48,
-  caption: "前往第二關",
-  captionSub: "彈弓清場",
+  caption: "前往第二階段",
+  captionSub: "擊碎通路高牆",
 };
 const SCENE_TR_SLINGSHOT_TO_BOSS = {
-  outFrames: 48,
-  holdFrames: 26,
-  inFrames: 48,
-  caption: "前往第二關",
-  captionSub: "Boss 決戰",
+  outFrames: 74,
+  holdFrames: 92,
+  inFrames: 54,
+  caption: "前往第二階段",
+  captionSub: "決戰能量之巔",
+  variant: "tower",
 };
 const SCENE_TR_TO_ENDING = {
   outFrames: 52,
   holdFrames: 30,
   inFrames: 52,
-  caption: "兩關全破",
-  captionSub: "勝利結局演出",
+  caption: "壟斷結界碎裂",
+  captionSub: "拯救康貝特200p",
 };
 const SCENE_TR_ENDING_TO_FINAL = {
   outFrames: 44,
@@ -1788,6 +1784,7 @@ function startSceneTransition(action, opts = {}) {
     action,
     caption: opts.caption ?? "",
     captionSub: opts.captionSub ?? "",
+    variant: opts.variant ?? "",
   };
 }
 
@@ -1826,6 +1823,154 @@ function updateSceneTransition(frameScale) {
   return true;
 }
 
+function getTransitionVisualProgress(tr) {
+  if (tr.phase === "out") {
+    return clamp((tr.timer / Math.max(1, tr.outFrames)) * 0.34, 0, 0.34);
+  }
+  if (tr.phase === "hold") {
+    return 0.34 + clamp(tr.timer / Math.max(1, tr.holdFrames), 0, 1) * 0.46;
+  }
+  return 0.8 + clamp(tr.timer / Math.max(1, tr.inFrames), 0, 1) * 0.2;
+}
+
+function drawTransitionCan(image, x, y, h, rotation = 0, fallback = "#ef2a3e") {
+  const w = h * 0.43;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.shadowColor = "rgba(255, 216, 102, 0.35)";
+  ctx.shadowBlur = 18;
+  if (canDrawImage(image)) {
+    ctx.drawImage(image, -w / 2, -h / 2, w, h);
+  } else {
+    ctx.fillStyle = fallback;
+    roundRect(-w / 2, -h / 2, w, h, 8);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawTowerSceneTransition(tr, alpha) {
+  const p = getTransitionVisualProgress(tr);
+  const open = easeOutCubic(clamp((p - 0.12) / 0.44, 0, 1));
+  const towerGlow = clamp((p - 0.44) / 0.42, 0, 1);
+
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.92;
+
+  const path = ctx.createLinearGradient(180, 330, 780, 210);
+  path.addColorStop(0, "rgba(255, 123, 32, 0.12)");
+  path.addColorStop(0.55, "rgba(255, 216, 102, 0.28)");
+  path.addColorStop(1, "rgba(255, 255, 255, 0.04)");
+  ctx.fillStyle = path;
+  ctx.beginPath();
+  ctx.moveTo(180, 392);
+  ctx.lineTo(500, 314);
+  ctx.lineTo(830, 382);
+  ctx.lineTo(940, 540);
+  ctx.lineTo(0, 540);
+  ctx.lineTo(0, 454);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = `rgba(255, 216, 102, ${0.16 + towerGlow * 0.32})`;
+  ctx.lineWidth = 4;
+  ctx.setLineDash([18, 14]);
+  ctx.beginPath();
+  ctx.moveTo(180, 372);
+  ctx.bezierCurveTo(330, 318, 510, 286, 706, 194);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const wallBaseX = 84 - open * 54;
+  const wallBaseY = 244 + Math.sin(p * Math.PI * 2) * 2;
+  const blockW = 56;
+  const blockH = 44;
+  const blocks = [
+    { x: 0, y: 0, rot: -0.08 },
+    { x: 62, y: -10, rot: 0.04 },
+    { x: 124, y: 2, rot: -0.03 },
+    { x: 30, y: 50, rot: 0.08 },
+    { x: 92, y: 48, rot: -0.06 },
+  ];
+  blocks.forEach((block, index) => {
+    ctx.save();
+    ctx.translate(wallBaseX + block.x - open * (14 + index * 7), wallBaseY + block.y + open * (index % 2 ? 16 : -10));
+    ctx.rotate(block.rot - open * (0.22 + index * 0.025));
+    ctx.fillStyle = "rgba(239, 42, 62, 0.95)";
+    roundRect(0, 0, blockW, blockH, 3);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    roundRect(6, 6, blockW - 12, blockH - 12, 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(130, 149, 194, 0.72)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(14, 12, blockW - 28, blockH - 24);
+    ctx.restore();
+  });
+
+  drawTransitionCan(art.enemyRedBull, 232 - open * 42, 236 - open * 30, 72, -0.2 - open * 0.25, palette.stripeRed);
+  drawTransitionCan(art.enemyMonster, 302 - open * 24, 246 + open * 18, 78, 0.12 + open * 0.2, "#111827");
+  drawTransitionCan(art.product, 440 + open * 162, 328 - open * 116, 92, -0.08 + open * 0.14, "#f7fbff");
+
+  const towerX = 654;
+  const towerY = 92;
+  const towerW = 182;
+  const towerH = 310;
+  const towerGradient = ctx.createLinearGradient(towerX, towerY, towerX + towerW, towerY + towerH);
+  towerGradient.addColorStop(0, "rgba(25, 70, 184, 0.88)");
+  towerGradient.addColorStop(0.62, "rgba(12, 18, 35, 0.86)");
+  towerGradient.addColorStop(1, "rgba(6, 10, 22, 0.94)");
+  ctx.fillStyle = towerGradient;
+  roundRect(towerX, towerY, towerW, towerH, 24);
+  ctx.fill();
+
+  ctx.fillStyle = `rgba(255, 216, 102, ${0.12 + towerGlow * 0.38})`;
+  ctx.beginPath();
+  ctx.arc(towerX + towerW / 2, towerY + 100, 86 + towerGlow * 34, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 252, 245, 0.92)";
+  roundRect(towerX + 46, towerY + 64, 90, 156, 16);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 216, 102, 0.86)";
+  ctx.lineWidth = 4;
+  roundRect(towerX + 46, towerY + 64, 90, 156, 16);
+  ctx.stroke();
+  for (let i = 0; i < 4; i += 1) {
+    const bx = towerX + 56 + i * 20;
+    ctx.strokeStyle = `rgba(22, 32, 61, ${0.32 + towerGlow * 0.36})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(bx, towerY + 72);
+    ctx.lineTo(bx, towerY + 210);
+    ctx.stroke();
+  }
+  drawTransitionCan(art.product, towerX + towerW / 2, towerY + 144, 104, Math.sin(p * 8) * 0.04, "#f7fbff");
+
+  ctx.fillStyle = "#fff7e8";
+  ctx.font = "bold 16px Avenir Next, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("能量巨塔", towerX + towerW / 2, towerY + 260);
+  ctx.fillStyle = "rgba(255, 247, 232, 0.72)";
+  ctx.font = "12px Avenir Next, sans-serif";
+  ctx.fillText("康貝特200p封印處", towerX + towerW / 2, towerY + 284);
+
+  const sparkCount = 7;
+  for (let i = 0; i < sparkCount; i += 1) {
+    const angle = p * Math.PI * 2 + i * ((Math.PI * 2) / sparkCount);
+    const radius = 70 + Math.sin(p * 7 + i) * 12;
+    const sx = towerX + towerW / 2 + Math.cos(angle) * radius;
+    const sy = towerY + 142 + Math.sin(angle) * radius * 0.58;
+    ctx.fillStyle = `rgba(255, 216, 102, ${0.32 + towerGlow * 0.42})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 3 + towerGlow * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 function drawSceneTransition() {
   const tr = game.sceneTransition;
   if (!tr) return;
@@ -1839,6 +1984,10 @@ function drawSceneTransition() {
   vignette.addColorStop(1, "rgba(6, 10, 22, 1)");
   ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  if (tr.variant === "tower") {
+    drawTowerSceneTransition(tr, a);
+  }
 
   const cap = tr.caption || "";
   const sub = tr.captionSub || "";
@@ -2556,7 +2705,7 @@ function resetStageTwoProjectile(stageTwo) {
   ) {
     game.overlayTimer = 54;
     game.overlayText =
-      stageTwo.shotsLeft === 1 ? "最後一發就緒，瞄準再射" : "下一發就緒，拖曳 200P 繼續";
+      stageTwo.shotsLeft === 1 ? "最後一發上架砲彈，瞄準再射" : "下一發上架砲彈就緒，繼續砸牆";
   }
 }
 
@@ -2616,7 +2765,7 @@ function destroyStageTwoTarget(stageTwo, target, bonus = 140) {
       (t) => t !== target && t.state !== "dead" && t.state !== "poof"
     ).length;
     game.overlayTimer = 58;
-    game.overlayText = remainingTargets > 0 ? `命中！剩餘目標 ${remainingTargets}` : "全清空！";
+    game.overlayText = remainingTargets > 0 ? `通路破口擴大！剩餘封鎖 ${remainingTargets}` : "通路高牆全破！";
   }
 }
 
@@ -2630,7 +2779,7 @@ function enterStageTwo() {
   game.stageTwoClearHandled = false;
   game.cameraX = 0;
   game.overlayTimer = 0;
-  game.overlayText = SLINGSHOT_FIRST_ORDER ? "第一關：彈弓打競品" : "第二關：彈弓打競品";
+  game.overlayText = SLINGSHOT_FIRST_ORDER ? "第一階段：擊碎！通路高牆" : "第二階段：擊碎！通路高牆";
 }
 
 function enterBossStageFromSlingshot() {
@@ -2654,7 +2803,7 @@ function enterBossStageFromSlingshot() {
   game.timeBoostEarned = 0;
   game.stageOneRating = 0;
   game.overlayTimer = 110;
-  game.overlayText = `${hudBossStageName()}：Boss 戰 — 往右前進`;
+  game.overlayText = `${hudBossStageName()}：決戰！能量之巔`;
   game.bossWarningShown = false;
   game.bossShockwaveHintShown = false;
   game.bossCutscene = null;
@@ -3008,7 +3157,7 @@ function drawWinFx() {
     const pop = 0.92 + (1.22 - 0.92) * (1 - Math.pow(1 - t, 3));
     const scale = pop - settle * 0.18;
     const a = clamp(1 - (fx.timer - 90) / 50, 0, 1);
-    const title = game.stage === 2 ? "兩關全破" : "勝利！";
+    const title = game.stage === 2 ? "200p重見天日" : "壟斷碎裂！";
     ctx.save();
     ctx.translate(WIDTH / 2, 126);
     ctx.scale(scale, scale);
@@ -3051,17 +3200,38 @@ function startStageOneRun() {
   if (game.state !== "intro") {
     return;
   }
+  game.state = "prologue";
+  game.prologueTimer = 0;
+  game.overlayTimer = 0;
+  game.overlayText = "";
+  soundFx.start();
+}
+
+function finishPrologueIntro() {
+  if (game.state !== "prologue") {
+    return;
+  }
   if (SLINGSHOT_FIRST_ORDER) {
     enterStageTwo();
-    game.overlayTimer = 110;
-    game.overlayText = "第一關：拖曳 200P 發射，清空所有目標";
+    game.overlayTimer = 118;
+    game.overlayText = "第一階段：發射僅存產品，擊碎通路高牆";
     soundFx.start();
     return;
   }
   game.state = "running";
   game.overlayTimer = 84;
-  game.overlayText = "往右走靠近 Boss，會先播對話再開打";
+  game.overlayText = "往右攻頂能量巨塔，準備面對提神聯盟";
   soundFx.start();
+}
+
+function updatePrologueIntro(frameScale) {
+  if (game.state !== "prologue") {
+    return;
+  }
+  game.prologueTimer += frameScale;
+  if (game.prologueTimer >= PROLOGUE_TOTAL_FRAMES) {
+    finishPrologueIntro();
+  }
 }
 
 function enterStageTwoPlaying() {
@@ -3070,7 +3240,7 @@ function enterStageTwoPlaying() {
   }
   game.state = "stage2Playing";
   game.overlayTimer = 110;
-  game.overlayText = `${hudSlingStageName()}：抓住 200P 發射`;
+  game.overlayText = `${hudSlingStageName()}：奪回上架權，發射 200p`;
   soundFx.start();
 }
 

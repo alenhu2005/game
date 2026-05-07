@@ -47,6 +47,15 @@ window.addEventListener("keydown", (event) => {
   }
 
   if (
+    game.state === "prologue" &&
+    (event.code === "Space" || event.code === "Enter")
+  ) {
+    event.preventDefault();
+    finishPrologueIntro();
+    return;
+  }
+
+  if (
     game.state === "ending" &&
     (event.code === "Space" || event.code === "Enter" || event.code === "KeyN")
   ) {
@@ -168,6 +177,45 @@ if (killBossButton) {
     killBossInstant();
   });
 }
+
+function shouldIgnoreProloguePointer(event) {
+  const target = event.target;
+  if (target?.closest?.("button") || target?.closest?.(".video-overlay")) {
+    return true;
+  }
+  const source = event.changedTouches ? event.changedTouches[0] : event;
+  if (!source || typeof source.clientX !== "number" || typeof source.clientY !== "number") {
+    return false;
+  }
+  const rect = canvas.getBoundingClientRect();
+  const insideCanvas =
+    source.clientX >= rect.left &&
+    source.clientX <= rect.right &&
+    source.clientY >= rect.top &&
+    source.clientY <= rect.bottom;
+  if (!insideCanvas) {
+    return false;
+  }
+  return pointInRect(getCanvasPointFromClient(source.clientX, source.clientY), getAudioToggleRect());
+}
+
+function skipPrologueFromShellTap(event) {
+  if (game.state !== "prologue") {
+    return;
+  }
+  if (shouldIgnoreProloguePointer(event)) {
+    return;
+  }
+  if (!event.target?.closest?.(".game-shell")) {
+    return;
+  }
+  unlockAudio();
+  finishPrologueIntro();
+  event.preventDefault();
+}
+
+document.addEventListener("pointerdown", skipPrologueFromShellTap, true);
+document.addEventListener("touchstart", skipPrologueFromShellTap, { capture: true, passive: false });
 
 if (cutsceneVideo) {
   cutsceneVideo.addEventListener("loadedmetadata", () => {
@@ -312,6 +360,12 @@ canvas.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (game.state === "prologue") {
+    finishPrologueIntro();
+    event.preventDefault();
+    return;
+  }
+
   if (game.state === "won" || game.state === "gameover") {
     resetRun();
     event.preventDefault();
@@ -410,6 +464,11 @@ canvas.addEventListener(
     const point = getCanvasPointFromClient(touch.clientX, touch.clientY);
     if (game.state === "intro" && SLINGSHOT_FIRST_ORDER) {
       startStageOneRun();
+      event.preventDefault();
+      return;
+    }
+    if (game.state === "prologue") {
+      finishPrologueIntro();
       event.preventDefault();
       return;
     }
