@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>康貝特 200P 期末衝刺場</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="game-shell">
+        <canvas id="game" width="960" height="540" aria-label="Platform game ad"></canvas>
+        <button id="skipButton" class="hud-button" type="button" aria-label="跳關">
+          跳關
+        </button>
+        <button id="killBossButton" class="hud-button hud-button--danger" type="button" aria-label="秒殺Boss">
+          秒殺Boss
+        </button>
+        <div id="cutsceneVideoOverlay" class="video-overlay" aria-hidden="true">
+          <div class="video-overlay__stage">
+            <video
+              id="cutsceneVideo"
+              class="video-overlay__player"
+              playsinline
+              preload="auto"
+              src="assets/marketing/inserted-video.mp4"
+            ></video>
+          </div>
+          <div id="cutsceneVideoHint" class="video-overlay__hint">影片播放中 · 點一下可略過</div>
+        </div>
+      </section>
+
+      <div class="ui-hidden" aria-hidden="true">
+        <span id="statusPill">按跳躍開始衝刺</span>
+        <span id="coinsPill">200P 0 / 0</span>
+        <span id="livesPill">精神值 5</span>
+        <span id="timerPill">剩餘時間 78秒</span>
+        <button id="restartButton" type="button">Restart</button>
+      </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
+    <script src="game.js?v=20260507-stage2-ending-ui"></script>
+  </body>
+</html>
