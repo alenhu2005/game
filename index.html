@@ -103,6 +103,10 @@
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
-    <script src="game.js?v=20260508-video-autoplay"></script>
+    <!-- 拆分後依序載入，保持同一個 global scope；維護說明見 game/README.md -->
+    <script src="game/split/part-01.core.js?v=20260510-mobile-sling"></script>
+    <script src="game/split/part-02.stage.js?v=20260510-mobile-sling"></script>
+    <script src="game/split/part-03.render-loop.js?v=20260510-mobile-sling"></script>
+    <script src="game/split/part-04.input-boot.js?v=20260510-mobile-sling"></script>
   </body>
 </html>
