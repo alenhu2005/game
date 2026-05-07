@@ -3,7 +3,7 @@ const ctx = canvas.getContext("2d");
 
 const WIDTH = 960;
 const HEIGHT = 540;
-const BUILD_ID = "20260507-landscape-shell";
+const BUILD_ID = "20260507-portrait-rotate";
 
 function configureCanvas() {
   const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
