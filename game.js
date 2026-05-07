@@ -9116,6 +9116,9 @@ let stageTwoDragStartPoint = null;
 let stageTwoDragMoved = false;
 canvas.addEventListener("pointerdown", (event) => {
   unlockAudio();
+  if (event.pointerType === "touch") {
+    stageTwoLastTouchPointerDownAt = Date.now();
+  }
 
   if (game.state === "finalVideo") {
     event.preventDefault();
