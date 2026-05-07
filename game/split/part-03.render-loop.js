@@ -98,6 +98,32 @@ function drawDecorations() {
     ctx.fillStyle = tower.color;
     roundRect(x, tower.y, tower.w, tower.h, 10);
     ctx.fill();
+
+    const crownW = Math.max(28, tower.w - 26);
+    const crownH = tower.w > 120 ? 24 : 18;
+    const crownX = x + (tower.w - crownW) / 2;
+    const crownY = tower.y - crownH + 6;
+    const crownGrad = ctx.createLinearGradient(crownX, crownY, crownX + crownW, crownY);
+    crownGrad.addColorStop(0, "rgba(44, 82, 182, 0.86)");
+    crownGrad.addColorStop(0.58, "rgba(14, 24, 58, 0.96)");
+    crownGrad.addColorStop(1, "rgba(8, 14, 34, 0.98)");
+    ctx.fillStyle = crownGrad;
+    roundRect(crownX, crownY, crownW, crownH, 10);
+    ctx.fill();
+
+    const spireX = x + tower.w / 2;
+    const spireTopY = crownY - (tower.w > 120 ? 20 : 14);
+    ctx.strokeStyle = "rgba(255, 247, 232, 0.42)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(spireX, crownY + 1);
+    ctx.lineTo(spireX, spireTopY);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 216, 102, 0.72)";
+    ctx.beginPath();
+    ctx.arc(spireX, spireTopY - 3, 3, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
     ctx.fillRect(x + 10, tower.y + 10, tower.w - 20, 12);
   });
@@ -1176,20 +1202,28 @@ function drawStageTwoScene() {
   // Cinematic camera for the explosion slow-motion close-up.
   if (game.state === "stage2Outro" && game.stageTwoOutro) {
     const t = game.stageTwoOutro.timer || 0;
-    // Start close-up immediately, then slowly relax.
-    const focusIn = easeOutCubic(clamp(t / 18, 0, 1));
-    const focusOut = clamp((480 - t) / 170, 0, 1);
-    const focus = focusIn * clamp(focusOut, 0, 1);
-    const cx = game.stageTwoOutro.impactX ?? WIDTH / 2;
-    const cy = game.stageTwoOutro.impactY ?? HEIGHT / 2;
-    const zoom = 1 + 0.75 * focus;
-    // Tight, deliberate micro-movement for a “slowmo close-up” feel.
-    const driftX = Math.sin((game.elapsed || 0) * 0.045) * 3.5 * focus;
-    const driftY = Math.cos((game.elapsed || 0) * 0.04) * 2.8 * focus;
-    ctx.translate(WIDTH / 2, HEIGHT / 2);
-    ctx.scale(zoom, zoom);
-    ctx.translate(-(cx + driftX), -(cy + driftY));
-    ctx.translate(0, 0);
+    const closeupEnd = 236;
+    if (t < closeupEnd) {
+      const focusIn = easeOutCubic(clamp(t / 18, 0, 1));
+      const focus = focusIn;
+      const rawCx = game.stageTwoOutro.impactX ?? WIDTH / 2;
+      const rawCy = game.stageTwoOutro.impactY ?? HEIGHT / 2;
+      const zoom = 1 + 0.75 * focus;
+      // Keep edge impacts inside frame during the hard-cut close-up shot.
+      const halfFrameW = WIDTH / (2 * zoom);
+      const halfFrameH = HEIGHT / (2 * zoom);
+      const safePadX = 46 * focus;
+      const safePadY = 30 * focus;
+      const safeCx = clamp(rawCx, halfFrameW + safePadX, WIDTH - halfFrameW - safePadX);
+      const safeCy = clamp(rawCy, halfFrameH + safePadY, HEIGHT - halfFrameH - safePadY);
+      const cx = rawCx + (safeCx - rawCx) * focus;
+      const cy = rawCy + (safeCy - rawCy) * focus;
+      const driftX = Math.sin((game.elapsed || 0) * 0.045) * 3.5 * focus;
+      const driftY = Math.cos((game.elapsed || 0) * 0.04) * 2.8 * focus;
+      ctx.translate(WIDTH / 2, HEIGHT / 2);
+      ctx.scale(zoom, zoom);
+      ctx.translate(-(cx + driftX), -(cy + driftY));
+    }
   }
 
   ctx.fillStyle = "#1a2a57";
@@ -1220,7 +1254,60 @@ function drawStageTwoScene() {
 
   ctx.restore();
 
-  drawStageTwoPowerMeter(stageTwo);
+  if (game.state !== "stage2Outro") {
+    drawStageTwoPowerMeter(stageTwo);
+  }
+}
+
+function drawTowerSceneTransitionByProgress(progress, alpha = 1) {
+  const p = clamp(progress, 0, 1);
+  if (alpha <= 0.001) return;
+  const frames = 100;
+  if (p < 0.34) {
+    drawTowerSceneTransition({ phase: "out", timer: (p / 0.34) * frames, outFrames: frames, holdFrames: frames, inFrames: frames, showPant: false }, alpha);
+    return;
+  }
+  if (p < 0.8) {
+    drawTowerSceneTransition({ phase: "hold", timer: ((p - 0.34) / 0.46) * frames, outFrames: frames, holdFrames: frames, inFrames: frames, showPant: false }, alpha);
+    return;
+  }
+  drawTowerSceneTransition({ phase: "in", timer: ((p - 0.8) / 0.2) * frames, outFrames: frames, holdFrames: frames, inFrames: frames, showPant: false }, alpha);
+}
+
+function drawStageTwoOutroHeroHead(x, y, r = 18, alpha = 1, rotation = 0, stretchY = 1) {
+  if (alpha <= 0.001) return;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.scale(1, stretchY);
+
+  ctx.fillStyle = "rgba(10, 14, 28, 0.22)";
+  ctx.beginPath();
+  ctx.ellipse(0, r + 15, r * 0.96, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.24)";
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 5;
+  ctx.beginPath();
+  ctx.arc(0, 0, r + 2, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+  ctx.fill();
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.clip();
+  if (!drawCoverImage(art.player, -r, -r, r * 2, r * 2, 0, 1.12, 0, 0)) {
+    if (!drawCoverImage(art.face, -r, -r, r * 2, r * 2, -Math.PI / 2, 1.48, 0.07, -0.03)) {
+      ctx.fillStyle = "#f4cfaa";
+      ctx.fillRect(-r, -r, r * 2, r * 2);
+    }
+  }
+  ctx.restore();
 }
 
 function drawStageTwoOutroOverlay() {
@@ -1229,520 +1316,219 @@ function drawStageTwoOutroOverlay() {
   if (!stageTwo || !outro) return;
 
   const t = outro.timer || 0;
-  const p = t / STAGE_TWO_OUTRO_TOTAL_FRAMES;
-  const groundY = stageTwo?.groundY ?? 430;
+  const groundY = stageTwo.groundY ?? 430;
+  const impactX = outro.impactX ?? WIDTH * 0.7;
+  const impactY = outro.impactY ?? groundY - 120;
+  const impactShotEnd = 236;
+  const runStart = 336;
+  const runEnd = 566;
+  const towerShotStart = runEnd;
+  const inImpactShot = t < impactShotEnd;
+  const inSmokeShot = t >= impactShotEnd && t < runStart;
+  const inRunShot = t >= runStart && t < runEnd;
+  const inTowerShot = t >= towerShotStart;
 
-  // ===== BEAT 1: Slow-motion collapse + smoke (t: 0-160) =====
-  if (t < 180) {
-    const slowmo = clamp(1 - t / 120, 0, 1);
-    const smokeIn = clamp((t - 40) / 120, 0, 1);
-    const smokeMax = 0.62 * smokeIn;
-
-    const focusIn = easeOutCubic(clamp((t - 6) / 26, 0, 1));
-    const focus = focusIn * clamp((180 - t) / 60, 0, 1);
-    if (focus > 0.001) {
-      const cx = outro.impactX ?? WIDTH / 2;
-      const cy = outro.impactY ?? HEIGHT / 2;
-      ctx.save();
-      ctx.globalAlpha = 0.9 * focus;
-      const vignette = ctx.createRadialGradient(cx, cy, 60, cx, cy, 780);
-      vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
-      vignette.addColorStop(0.35, "rgba(0, 0, 0, 0.18)");
-      vignette.addColorStop(1, "rgba(0, 0, 0, 0.62)");
-      ctx.fillStyle = vignette;
-      ctx.fillRect(0, 0, WIDTH, HEIGHT);
-      ctx.restore();
-
-      ctx.save();
-      ctx.globalAlpha = 0.8 * focus;
-      const spot = ctx.createRadialGradient(cx, cy, 0, cx, cy, 220);
-      spot.addColorStop(0, "rgba(255, 240, 196, 0.72)");
-      spot.addColorStop(0.5, "rgba(255, 168, 96, 0.22)");
-      spot.addColorStop(1, "rgba(255, 168, 96, 0)");
-      ctx.fillStyle = spot;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 220, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    const pulse1 = clamp(1 - Math.abs(t - 10) / 10, 0, 1);
-    const pulse2 = clamp(1 - Math.abs(t - 28) / 12, 0, 1);
-    const pulse3 = clamp(1 - Math.abs(t - 46) / 14, 0, 1);
-    const pulse = Math.max(pulse1 * 0.55, pulse2 * 0.42, pulse3 * 0.32);
-    if (pulse > 0.001) {
-      ctx.save();
-      ctx.globalAlpha = pulse;
-      ctx.fillStyle = "rgba(255, 252, 245, 1)";
-      ctx.fillRect(0, 0, WIDTH, HEIGHT);
-      ctx.restore();
-    }
-
+  const shockFocus = easeOutCubic(clamp((t - 2) / 22, 0, 1)) * clamp((220 - t) / 128, 0, 1);
+  if (inImpactShot && shockFocus > 0.001) {
     ctx.save();
-    ctx.globalAlpha = 0.18 + slowmo * 0.18;
-    ctx.fillStyle = "rgba(255, 255, 255, 1)";
+    ctx.globalAlpha = 0.88 * shockFocus;
+    const vignette = ctx.createRadialGradient(impactX, impactY, 70, impactX, impactY, 760);
+    vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+    vignette.addColorStop(0.4, "rgba(0, 0, 0, 0.16)");
+    vignette.addColorStop(1, "rgba(0, 0, 0, 0.62)");
+    ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     ctx.restore();
 
-    // Smoke.
     ctx.save();
-    const smokeGrad = ctx.createLinearGradient(0, groundY - 160, 0, HEIGHT);
-    smokeGrad.addColorStop(0, `rgba(22, 28, 48, ${0.0})`);
-    smokeGrad.addColorStop(0.35, `rgba(22, 28, 48, ${0.25 * smokeMax})`);
-    smokeGrad.addColorStop(1, `rgba(22, 28, 48, ${smokeMax})`);
-    ctx.fillStyle = smokeGrad;
-    ctx.fillRect(0, groundY - 180, WIDTH, HEIGHT - (groundY - 180));
+    ctx.globalAlpha = 0.84 * shockFocus;
+    const blast = ctx.createRadialGradient(impactX, impactY, 0, impactX, impactY, 240);
+    blast.addColorStop(0, "rgba(255, 244, 214, 0.82)");
+    blast.addColorStop(0.45, "rgba(255, 168, 96, 0.28)");
+    blast.addColorStop(1, "rgba(255, 168, 96, 0)");
+    ctx.fillStyle = blast;
+    ctx.beginPath();
+    ctx.arc(impactX, impactY, 240, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
-    for (let i = 0; i < 18; i += 1) {
-      const seed = (i * 97 + Math.floor(t * 2)) % 997;
-      const sx = ((seed * 37) % 980) - 10;
-      const sy = groundY - 90 - (((seed * 53) % 160) + (t * (0.35 + (i % 3) * 0.08)));
-      const sr = 18 + ((seed * 17) % 22);
-      const sa = (0.08 + (i % 4) * 0.03) * smokeIn;
+  const pulseA = clamp(1 - Math.abs(t - 8) / 10, 0, 1);
+  const pulseB = clamp(1 - Math.abs(t - 24) / 14, 0, 1);
+  const pulseC = clamp(1 - Math.abs(t - 46) / 18, 0, 1);
+  const pulse = Math.max(pulseA * 0.7, pulseB * 0.5, pulseC * 0.34);
+  if (inImpactShot && pulse > 0.001) {
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = "rgba(255, 252, 245, 1)";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.restore();
+  }
+
+  const freezeWash = clamp((160 - t) / 160, 0, 1);
+  if (inImpactShot && freezeWash > 0.001) {
+    ctx.save();
+    ctx.globalAlpha = 0.06 + freezeWash * 0.2;
+    ctx.fillStyle = "rgba(255, 255, 255, 1)";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.restore();
+  }
+
+  const smokeShotProgress = clamp((t - impactShotEnd) / Math.max(1, runStart - impactShotEnd), 0, 1);
+  const smokeAlpha = inSmokeShot ? 1 - easeOutCubic(smokeShotProgress) : 0;
+  const smokeGrad = ctx.createLinearGradient(0, groundY - 170, 0, HEIGHT);
+  smokeGrad.addColorStop(0, "rgba(18, 24, 42, 0)");
+  smokeGrad.addColorStop(0.34, `rgba(18, 24, 42, ${0.16 * smokeAlpha})`);
+  smokeGrad.addColorStop(1, `rgba(18, 24, 42, ${0.62 * smokeAlpha})`);
+  if (smokeAlpha > 0.001) {
+    ctx.save();
+    ctx.fillStyle = smokeGrad;
+    ctx.fillRect(0, groundY - 190, WIDTH, HEIGHT - (groundY - 190));
+    for (let i = 0; i < 26; i += 1) {
+      const seed = (i * 79 + Math.floor(t * 1.8)) % 997;
+      const sx = impactX + (((seed * 31) % 460) - 230);
+      const sy = groundY - 30 - (((seed * 47) % 170) + t * (0.2 + (i % 4) * 0.06));
+      const sr = 26 + ((seed * 11) % 26);
+      const sa = (0.07 + (i % 5) * 0.022) * smokeAlpha;
       ctx.globalAlpha = sa;
-      ctx.fillStyle = "rgba(210, 218, 230, 1)";
+      ctx.fillStyle = "rgba(214, 220, 230, 1)";
       ctx.beginPath();
       ctx.arc(sx, sy, sr, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
-
-    // Rubble debris overlay building up toward end.
-    const rubbleBuild = clamp((t - 100) / 80, 0, 1);
-    if (rubbleBuild > 0.001) {
-      ctx.save();
-      ctx.globalAlpha = rubbleBuild * 0.55;
-      ctx.fillStyle = "rgba(10, 14, 28, 1)";
-      ctx.fillRect(0, 0, WIDTH, HEIGHT);
-      // Jagged debris pile silhouette at bottom.
-      for (let i = 0; i < 40; i += 1) {
-        const rx = ((i * 53 + t * 3) % 1000) - 20;
-        const ry = groundY - 10 - ((i * 27 + t * 2) % 60) * rubbleBuild;
-        const rw = 8 + ((i * 19) % 20);
-        const rh = 4 + ((i * 31) % 14);
-        ctx.fillStyle = `rgba(18, 24, 42, ${0.4 + rubbleBuild * 0.4})`;
-        roundRect(rx, ry, rw, rh, 3);
-        ctx.fill();
-      }
-      ctx.restore();
-    }
   }
 
-  // ===== RUBBLE BLACKOUT (t: 160-220) full-screen dark cover =====
-  const rubbleCover = clamp((t - 150) / 40, 0, 1) * clamp((240 - t) / 60, 0, 1);
-  if (rubbleCover > 0.001) {
+  const rubbleBuild = inImpactShot
+    ? easeOutCubic(clamp((t - 92) / 92, 0, 1))
+    : inSmokeShot
+      ? 1
+      : 0;
+  if (rubbleBuild > 0.001) {
     ctx.save();
-    ctx.globalAlpha = 0.85 + rubbleCover * 0.15;
-    ctx.fillStyle = "rgba(6, 8, 18, 1)";
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
-    // Debris chunks scattered across the full screen.
-    for (let i = 0; i < 50; i += 1) {
-      const rx = ((i * 67 + t * 4) % 1000) - 20;
-      const ry = ((i * 43 + t * 3) % 600) - 40;
-      const rw = 6 + ((i * 29) % 24);
-      const rh = 3 + ((i * 37) % 18);
-      ctx.fillStyle = `rgba(12, 18, 35, ${0.3 + ((i * 17) % 10) * 0.06})`;
+    ctx.globalAlpha = 0.58 * rubbleBuild;
+    ctx.fillStyle = "rgba(12, 16, 30, 1)";
+    ctx.beginPath();
+    ctx.moveTo(0, HEIGHT);
+    ctx.lineTo(0, groundY - 6);
+    for (let i = 0; i <= 12; i += 1) {
+      const x = (WIDTH / 12) * i;
+      const y = groundY - 4 - (((i * 37) % 28) + (i % 2) * 14) * rubbleBuild;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(WIDTH, HEIGHT);
+    ctx.closePath();
+    ctx.fill();
+
+    for (let i = 0; i < 34; i += 1) {
+      const rx = ((i * 61 + t * 2) % 1040) - 40;
+      const ry = groundY - 18 - ((i * 23) % 46) * rubbleBuild;
+      const rw = 10 + ((i * 17) % 18);
+      const rh = 4 + ((i * 29) % 12);
+      ctx.fillStyle = `rgba(24, 30, 52, ${0.34 + rubbleBuild * 0.38})`;
       roundRect(rx, ry, rw, rh, 3);
       ctx.fill();
     }
     ctx.restore();
   }
 
-  // ===== CLEAN SCENE CUT: Tower scene with rubble pile (t: 200+) =====
-  if (t >= 200) {
-    // Hard cut: full night tower backdrop.
-    ctx.save();
-
-    const sky = ctx.createLinearGradient(0, -120, 0, 620);
-    sky.addColorStop(0, "rgba(18, 28, 72, 1)");
-    sky.addColorStop(0.48, "rgba(12, 18, 35, 1)");
-    sky.addColorStop(1, "rgba(6, 10, 22, 1)");
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, -120, WIDTH, HEIGHT + 240);
-
-    // Stars.
-    ctx.save();
-    ctx.globalAlpha = 0.28;
-    ctx.fillStyle = "rgba(255, 252, 245, 1)";
-    for (let i = 0; i < 70; i += 1) {
-      const sx = (i * 73) % 980;
-      const sy = ((i * 131) % 420) - 40;
-      const sr = 0.9 + ((i * 17) % 10) * 0.06;
-      ctx.globalAlpha = 0.12 + (((i * 29) % 10) / 10) * 0.22;
-      ctx.beginPath();
-      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-
-    // Ground haze.
-    const hazeGrad = ctx.createLinearGradient(0, 360, 0, 610);
-    hazeGrad.addColorStop(0, "rgba(255, 216, 102, 0)");
-    hazeGrad.addColorStop(0.35, "rgba(255, 216, 102, 0.08)");
-    hazeGrad.addColorStop(1, "rgba(12, 18, 35, 0.72)");
-    ctx.fillStyle = hazeGrad;
-    ctx.fillRect(0, 340, WIDTH, 280);
-    ctx.restore();
-
-    // ===== TOWER =====
-    const towerX = 654;
-    const towerY = -40;
-    const towerW = 182;
-    const towerH = 440;
-    const towerRight = towerX + towerW;
-    const towerGlow = clamp((t - 280) / 100, 0, 1);
-
-    // Tower platform.
-    ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = "rgba(6, 10, 22, 0.95)";
-    roundRect(towerX - 64, towerY + towerH - 44, towerW + 128, 64, 22);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255, 216, 102, 0.12)";
-    roundRect(towerX - 58, towerY + towerH - 40, towerW + 116, 8, 8);
-    ctx.fill();
-    ctx.globalAlpha = 0.35;
-    ctx.strokeStyle = "rgba(255, 252, 245, 0.55)";
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 10; i += 1) {
-      const rx = towerX - 44 + i * 30;
-      ctx.beginPath();
-      ctx.moveTo(rx, towerY + towerH - 32);
-      ctx.lineTo(rx, towerY + towerH - 8);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // Tower crown.
-    const crownY = towerY - 26;
-    ctx.save();
-    ctx.globalAlpha = 0.9;
-    const crownGrad = ctx.createLinearGradient(towerX, crownY, towerRight, crownY);
-    crownGrad.addColorStop(0, "rgba(36, 72, 170, 0.85)");
-    crownGrad.addColorStop(0.55, "rgba(10, 16, 40, 0.92)");
-    crownGrad.addColorStop(1, "rgba(6, 10, 22, 0.96)");
-    ctx.fillStyle = crownGrad;
-    roundRect(towerX + 18, crownY, towerW - 36, 34, 14);
-    ctx.fill();
-    ctx.globalAlpha = 0.55;
-    ctx.strokeStyle = `rgba(255, 216, 102, ${0.10 + towerGlow * 0.18})`;
-    ctx.lineWidth = 3;
-    roundRect(towerX + 18, crownY, towerW - 36, 34, 14);
-    ctx.stroke();
-    const spx = towerX + towerW / 2;
-    ctx.globalAlpha = 0.8;
-    ctx.strokeStyle = "rgba(255, 252, 245, 0.22)";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(spx, crownY);
-    ctx.lineTo(spx, crownY - 38);
-    ctx.stroke();
-    ctx.globalAlpha = 0.65;
-    ctx.fillStyle = `rgba(255, 216, 102, ${0.18 + towerGlow * 0.18})`;
-    ctx.beginPath();
-    ctx.arc(spx, crownY - 42, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    // Tower body.
-    const bodyGrad = ctx.createLinearGradient(towerX, towerY, towerX + towerW, towerY);
-    bodyGrad.addColorStop(0, "rgba(36, 72, 170, 0.92)");
-    bodyGrad.addColorStop(0.22, "rgba(18, 38, 92, 0.92)");
-    bodyGrad.addColorStop(0.55, "rgba(10, 16, 40, 0.94)");
-    bodyGrad.addColorStop(1, "rgba(6, 10, 22, 0.96)");
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(towerX + 10, towerY + 6);
-    ctx.lineTo(towerRight - 10, towerY + 6);
-    ctx.lineTo(towerRight, towerY + towerH - 10);
-    ctx.lineTo(towerX, towerY + towerH - 10);
-    ctx.closePath();
-    ctx.clip();
-    ctx.fillStyle = bodyGrad;
-    roundRect(towerX, towerY, towerW, towerH, 26);
-    ctx.fill();
-    ctx.restore();
-
-    // Edge highlights.
-    ctx.save();
-    ctx.globalAlpha = 0.85;
-    ctx.lineWidth = 3;
-    const leftRim = ctx.createLinearGradient(towerX, towerY, towerX + 26, towerY);
-    leftRim.addColorStop(0, "rgba(180, 220, 255, 0.42)");
-    leftRim.addColorStop(1, "rgba(180, 220, 255, 0)");
-    ctx.strokeStyle = leftRim;
-    ctx.beginPath();
-    ctx.moveTo(towerX + 10, towerY + 18);
-    ctx.lineTo(towerX + 10, towerY + towerH - 18);
-    ctx.stroke();
-    const rightRim = ctx.createLinearGradient(towerRight - 26, towerY, towerRight, towerY);
-    rightRim.addColorStop(0, "rgba(255, 216, 102, 0)");
-    rightRim.addColorStop(1, `rgba(255, 216, 102, ${0.22 + towerGlow * 0.25})`);
-    ctx.strokeStyle = rightRim;
-    ctx.beginPath();
-    ctx.moveTo(towerRight - 10, towerY + 26);
-    ctx.lineTo(towerRight - 10, towerY + towerH - 26);
-    ctx.stroke();
-    ctx.restore();
-
-    // Windows.
-    ctx.save();
-    const winFlicker = 0.75 + 0.25 * Math.sin(p * 12);
-    ctx.globalAlpha = 0.62 * winFlicker;
-    for (let r = 0; r < 9; r += 1) {
-      for (let c = 0; c < 3; c += 1) {
-        const seed = r * 17 + c * 41;
-        const on = (seed % 5) !== 0;
-        if (!on) continue;
-        const wx = towerX + 38 + c * 38;
-        const wy = towerY + 160 + r * 26;
-        const wa = 0.10 + ((seed % 7) / 7) * 0.18 + towerGlow * 0.18;
-        ctx.fillStyle = `rgba(255, 216, 102, ${wa})`;
-        roundRect(wx, wy, 16, 8, 3);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
-
-    // ===== BEAT 3: Hero at tower base, looking up (= t: 240-440) =====
-    const baseStart = 260;
-    const baseDur = 140;
-    const baseHold = clamp((t - baseStart) / baseDur, 0, 1) * clamp((440 - t) / 120, 0, 1);
-    if (baseHold > 0.001) {
-      const hx = towerX - 112;
-      const hy = towerY + towerH - 36 + Math.sin(p * 8) * 2;
-      const hr = 18;
-
-      ctx.save();
-      ctx.globalAlpha = 0.45 + baseHold * 0.55;
-      ctx.shadowColor = "rgba(0,0,0,0.25)";
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetY = 4;
-      ctx.beginPath();
-      ctx.arc(hx, hy, hr + 2, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
-      ctx.fill();
-      ctx.restore();
-
-      ctx.save();
-      ctx.globalAlpha = 0.55 + baseHold * 0.45;
-      ctx.beginPath();
-      ctx.arc(hx, hy, hr, 0, Math.PI * 2);
-      ctx.clip();
-      if (!drawCoverImage(art.face, hx - hr, hy - hr, hr * 2, hr * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
-        ctx.fillStyle = "#f4cfaa";
-        ctx.fillRect(hx - hr, hy - hr, hr * 2, hr * 2);
-      }
-      ctx.restore();
-
-      // Caption bubble.
-      ctx.save();
-      ctx.globalAlpha = 0.55 * baseHold;
-      ctx.fillStyle = "rgba(12, 18, 35, 0.72)";
-      roundRect(hx - 92, hy - 58, 184, 36, 14);
-      ctx.fill();
-      ctx.fillStyle = "#fff7e8";
-      ctx.font = "bold 14px Avenir Next, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("（仰望能量巨塔…）", hx, hy - 40);
-      ctx.textBaseline = "alphabetic";
-      ctx.restore();
-    }
-
-    // ===== CAGE WITH GLOWING CAN =====
-    const cageX = towerX + 46;
-    const cageY = towerY + 92;
-    const cageW = 90;
-    const cageH = 156;
-    const cageCX = cageX + cageW / 2;
-    const cageCY = cageY + cageH / 2;
-    const domeReveal = clamp((t - 300) / 60, 0, 1);
-
-    if (domeReveal > 0.001) {
-      // Cage glow.
-      ctx.save();
-      const cageGlow = ctx.createRadialGradient(cageCX, cageCY, 10, cageCX, cageCY, 140);
-      cageGlow.addColorStop(0, `rgba(255, 216, 102, ${0.18 + towerGlow * 0.22})`);
-      cageGlow.addColorStop(0.55, `rgba(255, 216, 102, ${0.05 + towerGlow * 0.10})`);
-      cageGlow.addColorStop(1, "rgba(255, 216, 102, 0)");
-      ctx.fillStyle = cageGlow;
-      ctx.beginPath();
-      ctx.arc(cageCX, cageCY, 130, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // Product can inside cage.
-      const canX = towerX + towerW / 2;
-      const canY = towerY + 170;
-      ctx.save();
-      ctx.globalAlpha = 0.35 + towerGlow * 0.25;
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.beginPath();
-      ctx.ellipse(canX + 2, canY + 44, 36, 12, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      drawTransitionCan(art.product, canX, canY, 104, Math.sin(p * 8) * 0.04, "#f7fbff");
-
-      // Cage bars.
-      const barCount = 5;
-      for (let i = 0; i < barCount; i += 1) {
-        const bx = cageX + 14 + i * 15;
-        const by1 = cageY + 10;
-        const by2 = cageY + cageH - 10;
-        ctx.save();
-        ctx.globalAlpha = 0.55 + towerGlow * 0.20;
-        const metal = ctx.createLinearGradient(bx - 3, 0, bx + 3, 0);
-        metal.addColorStop(0, `rgba(10, 16, 40, ${0.55 + towerGlow * 0.10})`);
-        metal.addColorStop(0.45, `rgba(255, 252, 245, ${0.06 + towerGlow * 0.06})`);
-        metal.addColorStop(1, `rgba(10, 16, 40, ${0.62 + towerGlow * 0.12})`);
-        ctx.strokeStyle = metal;
-        ctx.lineWidth = 5;
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        ctx.moveTo(bx, by1);
-        ctx.lineTo(bx, by2);
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    // ===== BEAT 4: Climbing the tower (= t: 350-600) =====
-    const climbStart = 380;
-    const climbDur = 200;
-    const climb = easeOutCubic(clamp((t - climbStart) / climbDur, 0, 1));
-    let heroX = null;
-    let heroY = null;
-    if (climb > 0.001) {
-      const bob = Math.sin(p * Math.PI * 16) * 2.8;
-      const fromX = towerX - 28;
-      const toX = towerRight - 18;
-      const cx = fromX + (toX - fromX) * (0.25 + climb * 0.75);
-      const cy = (towerY + towerH - 36) - (towerH - 120) * climb + bob;
-      const cr = 18;
-      heroX = cx;
-      heroY = cy;
-
-      ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,0.25)";
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetY = 4;
-      ctx.beginPath();
-      ctx.arc(cx, cy, cr + 2, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(cx, cy, cr, 0, Math.PI * 2);
-      ctx.clip();
-      if (!drawCoverImage(art.face, cx - cr, cy - cr, cr * 2, cr * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
-        ctx.fillStyle = "#f4cfaa";
-        ctx.fillRect(cx - cr, cy - cr, cr * 2, cr * 2);
-      }
-      ctx.restore();
-
-      // Handhold ticks.
-      ctx.save();
-      ctx.globalAlpha = 0.35 + climb * 0.25;
-      ctx.strokeStyle = "rgba(255, 247, 232, 0.65)";
-      ctx.lineWidth = 2;
-      for (let i = 0; i < 7; i += 1) {
-        const yy = towerY + 70 + i * 38;
-        ctx.beginPath();
-        ctx.moveTo(towerRight - 10, yy);
-        ctx.lineTo(towerRight + 6, yy - 6);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-
-    // ===== BEAT 5: Panting at top (= t: 600-720) =====
-    const pantStart = 620;
-    const pantDur = 100;
-    const pant = clamp((t - pantStart) / pantDur, 0, 1);
-    if (pant > 0.001 && heroX != null && heroY != null) {
-      ctx.save();
-      ctx.globalAlpha = pant;
-      const bubbleW = 204;
-      const bubbleH = 44;
-      const bubbleX = heroX - bubbleW / 2;
-      const bubbleY = heroY - 74;
-
-      ctx.shadowColor = "rgba(0,0,0,0.28)";
-      ctx.shadowBlur = 12;
-      ctx.shadowOffsetY = 6;
-      ctx.fillStyle = "rgba(255, 252, 246, 0.96)";
-      roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 18);
-      ctx.fill();
-      ctx.shadowColor = "transparent";
-
-      ctx.fillStyle = "rgba(255, 252, 246, 0.96)";
-      ctx.beginPath();
-      ctx.moveTo(heroX - 10, bubbleY + bubbleH - 2);
-      ctx.lineTo(heroX + 8, bubbleY + bubbleH - 2);
-      ctx.lineTo(heroX - 2, heroY - 24);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.strokeStyle = "rgba(25, 70, 184, 0.18)";
-      ctx.lineWidth = 2;
-      roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 18);
-      ctx.stroke();
-
-      ctx.fillStyle = "#16203d";
-      ctx.font = "bold 14px Avenir Next, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("哈…哈…終於爬上來了…", heroX, bubbleY + bubbleH / 2 + 1);
-      ctx.textBaseline = "alphabetic";
-      ctx.restore();
-    }
-
-    // Tower label.
-    const towerLabelAlpha = clamp((t - 300) / 40, 0, 1);
-    ctx.save();
-    ctx.globalAlpha = towerLabelAlpha;
-    ctx.fillStyle = "#fff7e8";
-    ctx.font = "bold 16px Avenir Next, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("能量巨塔", towerX + towerW / 2, towerY + 340);
-    ctx.fillStyle = "rgba(255, 247, 232, 0.72)";
-    ctx.font = "12px Avenir Next, sans-serif";
-    ctx.fillText("康貝特200p封印處", towerX + towerW / 2, towerY + 364);
-    ctx.restore();
-
-    ctx.restore(); // end towerPanOffset
+  if (inTowerShot) {
+    const towerProgress = clamp(
+      (t - towerShotStart) / Math.max(1, STAGE_TWO_OUTRO_TOTAL_FRAMES - towerShotStart),
+      0,
+      1
+    );
+    drawTowerSceneTransitionByProgress(towerProgress, 1);
   }
 
-  // Subtle caption "殺出一條血路" during the run.
-  if (t > 100 && t < 400) {
+  const run = clamp((t - runStart) / (runEnd - runStart), 0, 1);
+  const runAlpha = inRunShot ? 1 : 0;
+  if (runAlpha > 0.001) {
+    const heroX = outro.heroBurstX + easeOutCubic(run) * 228;
+    const heroY = outro.heroBurstY - Math.abs(Math.sin(run * Math.PI * 4.4)) * 8;
+
     ctx.save();
-    const capAlpha = clamp((t - 100) / 30, 0, 1) * clamp((400 - t) / 60, 0, 1);
-    ctx.globalAlpha = capAlpha;
-    ctx.fillStyle = "rgba(12, 18, 35, 0.55)";
-    roundRect(24, HEIGHT - 74, 430, 52, 18);
+    for (let i = 0; i < 7; i += 1) {
+      const trail = 1 - i / 7;
+      const puffX = heroX - 36 - i * 26;
+      const puffY = groundY - 16 - (i % 2) * 8;
+      ctx.globalAlpha = runAlpha * trail * 0.28;
+      ctx.fillStyle = "rgba(224, 228, 236, 1)";
+      ctx.beginPath();
+      ctx.arc(puffX, puffY, 18 + i * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (let i = 0; i < 5; i += 1) {
+      const fx = heroX - 18 - i * 24;
+      const fy = groundY - 22 - (i % 2) * 10;
+      ctx.globalAlpha = runAlpha * (0.44 - i * 0.06);
+      ctx.fillStyle = i % 2 === 0 ? "rgba(255, 168, 96, 1)" : "rgba(200, 214, 232, 1)";
+      roundRect(fx, fy, 16 + i * 2, 5 + (i % 3), 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    drawStageTwoOutroHeroHead(heroX, heroY, 21, runAlpha, 0.16, 0.92);
+  }
+
+  const curtain = inSmokeShot ? 1 - easeOutCubic(smokeShotProgress) : 0;
+  if (curtain > 0.001) {
+    ctx.save();
+    ctx.globalAlpha = 0.12 + curtain * 0.16;
+    const curtainGrad = ctx.createLinearGradient(0, groundY - 210, 0, HEIGHT);
+    curtainGrad.addColorStop(0, "rgba(255, 255, 255, 0)");
+    curtainGrad.addColorStop(0.28, "rgba(236, 240, 245, 0.34)");
+    curtainGrad.addColorStop(1, "rgba(18, 24, 42, 0)");
+    ctx.fillStyle = curtainGrad;
+    ctx.fillRect(0, groundY - 230, WIDTH, 250);
+    ctx.restore();
+  }
+
+  if (inRunShot) {
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(12, 18, 35, 0.58)";
+    roundRect(28, HEIGHT - 94, 454, 68, 18);
     ctx.fill();
     ctx.fillStyle = "#fff7e8";
-    ctx.font = "bold 16px Avenir Next, sans-serif";
+    ctx.font = "bold 24px Avenir Next, sans-serif";
     ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText("殺出一條血路 → 前往巨塔", 44, HEIGHT - 48);
-    ctx.textBaseline = "alphabetic";
+    ctx.fillText("殺出一條血路", 52, HEIGHT - 54);
+    ctx.fillStyle = "rgba(255, 247, 232, 0.84)";
+    ctx.font = "600 14px Avenir Next, sans-serif";
+    ctx.fillText("主角衝破鋁罐廢墟，直奔能量巨塔。", 52, HEIGHT - 30);
     ctx.restore();
   }
 
-  // Final epic caption near the end.
-  if (t > 680 && t < STAGE_TWO_OUTRO_TOTAL_FRAMES) {
+  const towerLocal = t - towerShotStart;
+  if (inTowerShot && towerLocal >= 72 && towerLocal < 244) {
     ctx.save();
-    const finalCap = clamp((t - 680) / 30, 0, 1) * clamp((STAGE_TWO_OUTRO_TOTAL_FRAMES - t) / 40, 0, 1);
-    ctx.globalAlpha = finalCap;
-    const vignette = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, 80, WIDTH / 2, HEIGHT / 2, 760);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(12, 18, 35, 0.52)";
+    roundRect(WIDTH - 330, HEIGHT - 92, 286, 60, 18);
+    ctx.fill();
+    ctx.fillStyle = "#fff7e8";
+    ctx.font = "bold 22px Avenir Next, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("仰望能量巨塔", WIDTH - 187, HEIGHT - 56);
+    ctx.fillStyle = "rgba(255, 247, 232, 0.82)";
+    ctx.font = "600 13px Avenir Next, sans-serif";
+    ctx.fillText("塔頂金色玻璃罩內，就是被囚禁的 200p。", WIDTH - 187, HEIGHT - 32);
+    ctx.restore();
+  }
+
+  if (t > STAGE_TWO_OUTRO_TOTAL_FRAMES - 180) {
+    ctx.save();
+    ctx.globalAlpha = 1;
+    const vignette = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, 90, WIDTH / 2, HEIGHT / 2, 760);
     vignette.addColorStop(0, "rgba(0,0,0,0)");
-    vignette.addColorStop(0.55, "rgba(0,0,0,0.5)");
-    vignette.addColorStop(1, "rgba(0,0,0,0.8)");
+    vignette.addColorStop(0.55, "rgba(0,0,0,0.46)");
+    vignette.addColorStop(1, "rgba(0,0,0,0.76)");
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     ctx.fillStyle = "#ffec8c";
-    ctx.font = "bold 28px Avenir Next, sans-serif";
+    ctx.font = "bold 30px Avenir Next, sans-serif";
     ctx.textAlign = "center";
     ctx.shadowColor = "rgba(0,0,0,0.45)";
     ctx.shadowBlur = 16;
@@ -1750,7 +1536,7 @@ function drawStageTwoOutroOverlay() {
     ctx.shadowBlur = 0;
     ctx.fillStyle = "rgba(255, 247, 232, 0.82)";
     ctx.font = "600 16px Avenir Next, sans-serif";
-    ctx.fillText("奪回康貝特200p，重回大街小巷", WIDTH / 2, HEIGHT / 2 + 26);
+    ctx.fillText("200p 就在塔頂，衝上去把它救回來。", WIDTH / 2, HEIGHT / 2 + 26);
     ctx.restore();
   }
 }
@@ -1819,16 +1605,32 @@ function drawPlayer() {
   if (game.bossCutscene?.active) {
     return;
   }
-  if (player.invincible > 0 && Math.floor(player.invincible / 5) % 2 === 0) {
+  if (game.state !== "dying" && player.invincible > 0 && Math.floor(player.invincible / 5) % 2 === 0) {
     return;
   }
 
+  const death = game.state === "dying" ? game.deathScene : null;
   const bounceDy = getCutsceneBounceDy("player");
   const x = player.x - game.cameraX;
   const y = player.y + bounceDy;
-  const facing = player.facing;
+  const facing = death ? 1 : player.facing;
+  const deathHold = death ? clamp(1 - (death.timer ?? 0) / Math.max(1, death.holdFrames ?? PLAYER_DEATH_HOLD_FRAMES), 0, 1) : 0;
+  const deathAlpha = death
+    ? clamp(
+        1 -
+          Math.max(
+            0,
+            ((death.timer ?? 0) - Math.max(1, (death.holdFrames ?? PLAYER_DEATH_HOLD_FRAMES) + 28)) /
+              Math.max(1, (death.totalFrames ?? PLAYER_DEATH_TOTAL_FRAMES) * 0.44)
+          ),
+        0,
+        1
+      )
+    : 1;
+  const scaleX = death ? 1 + deathHold * 0.12 : 1;
+  const scaleY = death ? 1 - deathHold * 0.16 : 1;
 
-  if (player.landingDust > 0) {
+  if (!death && player.landingDust > 0) {
     ctx.fillStyle = "rgba(255, 238, 210, 0.8)";
     ctx.beginPath();
     ctx.ellipse(x + player.w / 2, y + player.h + 4, 16, 5, 0, 0, Math.PI * 2);
@@ -1836,8 +1638,9 @@ function drawPlayer() {
   }
 
   ctx.save();
+  ctx.globalAlpha = deathAlpha;
   ctx.translate(x + player.w / 2, y);
-  ctx.scale(facing, 1);
+  ctx.scale(facing * scaleX, scaleY);
   ctx.translate(-player.w / 2, 0);
 
   if (canDrawImage(art.player)) {
@@ -1871,6 +1674,18 @@ function drawPlayer() {
   }
 
   ctx.restore();
+
+  if (death) {
+    const pulse = 0.4 + 0.6 * Math.sin((death.timer ?? 0) * 0.18);
+    ctx.save();
+    ctx.globalAlpha = 0.18 + deathHold * 0.26;
+    ctx.strokeStyle = `rgba(255, 247, 232, ${0.42 + pulse * 0.18})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(x + player.w / 2, y + player.h / 2, 30 + deathHold * 8, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 function drawHud() {
@@ -2595,6 +2410,7 @@ function drawOverlay() {
   }
 
   if (game.overlayTimer <= 0) {
+    drawBossArrivalSpeechBubble();
     return;
   }
 
@@ -2609,6 +2425,7 @@ function drawOverlay() {
   ctx.fillStyle = "#fff6e4";
   ctx.font = "bold 20px Avenir Next, sans-serif";
   ctx.fillText(game.overlayText, WIDTH / 2, overlayY + 30);
+  drawBossArrivalSpeechBubble();
 
   if (game.state === "won" || game.state === "gameover") {
     if (game.state === "won") {
@@ -2638,6 +2455,61 @@ function drawSpeechBubble(x, y, w, h, text, align = "center") {
   for (let i = 0; i < lines.length; i += 1) {
     ctx.fillText(lines[i], align === "left" ? x + 18 : x + w / 2, top + i * lineH);
   }
+}
+
+function drawBossArrivalSpeechBubble() {
+  const arrival = game.bossArrivalScene;
+  if (game.state !== "bossArrival" || !arrival || (arrival.phase ?? "walk") !== "pant") {
+    return;
+  }
+
+  const duration = arrival.pantDuration ?? BOSS_ARRIVAL_PANT_FRAMES;
+  const timer = arrival.phaseTimer ?? 0;
+  const alpha =
+    easeOutCubic(clamp(timer / 18, 0, 1)) *
+    easeOutCubic(clamp((duration - timer) / 22, 0, 1));
+  if (alpha <= 0.001) {
+    return;
+  }
+
+  const player = game.player;
+  const heroX = player.x - game.cameraX + player.w / 2;
+  const heroY = player.y;
+  const bubbleW = 218;
+  const bubbleH = 44;
+  const bubbleX = clamp(heroX - bubbleW / 2, 18, WIDTH - bubbleW - 18);
+  const bubbleY = Math.max(18, heroY - 72);
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.shadowColor = "rgba(0,0,0,0.24)";
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 5;
+  ctx.fillStyle = "rgba(255, 252, 246, 0.96)";
+  roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 18);
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+
+  const tailX = clamp(heroX, bubbleX + 28, bubbleX + bubbleW - 28);
+  ctx.beginPath();
+  ctx.moveTo(tailX - 10, bubbleY + bubbleH - 1);
+  ctx.lineTo(tailX + 8, bubbleY + bubbleH - 1);
+  ctx.lineTo(heroX - 2, heroY - 22);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(25, 70, 184, 0.18)";
+  ctx.lineWidth = 2;
+  roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 18);
+  ctx.stroke();
+
+  ctx.fillStyle = "#16203d";
+  ctx.font = "bold 14px Avenir Next, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("哈…哈…總算殺上來了…", bubbleX + bubbleW / 2, bubbleY + bubbleH / 2 + 1);
+  ctx.textBaseline = "alphabetic";
+  ctx.restore();
 }
 
 function drawEndingPrincessCan(cx, cy, bob = 0, rescueProgress = 0) {

@@ -87,6 +87,13 @@ const BOSS_ARENA_MINION_MAX_X = BOSS_ARENA_GROUND_X + BOSS_ARENA_GROUND_W - 28;
 const BOSS_ENGAGED_LEASH_PAD_RIGHT = 240;
 const BOSS_BATTLE_TRANSFER_PLAYER_X = 3232;
 const BOSS_BATTLE_TRANSFER_BOSS_X = 3908;
+const BOSS_ARRIVAL_WALK_TO_X = 3528;
+const BOSS_ARRIVAL_WALK_SPEED = 2.15;
+const BOSS_ARRIVAL_PANT_FRAMES = 104;
+const PLAYER_DEATH_HOLD_FRAMES = 18;
+const PLAYER_DEATH_TOTAL_FRAMES = 96;
+const PLAYER_DEATH_LAUNCH_VY = -10.8;
+const PLAYER_DEATH_GRAVITY = 0.52;
 const BOSS_PROJECTILE_LIFE_FRAMES = 118;
 const BOSS_PROJECTILE_LIFE_HOMING_FRAMES = 150;
 const BOSS_PHASE_SHIFT_FRAMES = 84;
@@ -270,8 +277,15 @@ const COIN_COMBO = {
   maxMultiplier: 5,
 };
 
-function triggerStageOneShake(intensity) {
+function triggerStageOneShake(intensity, dirAngle = null) {
   STAGE_ONE_FX.cameraShake = Math.min(20, STAGE_ONE_FX.cameraShake + intensity);
+  if (dirAngle != null) {
+    STAGE_ONE_FX._shakeDirX = Math.cos(dirAngle) || 0;
+    STAGE_ONE_FX._shakeDirY = Math.sin(dirAngle) || 0;
+    STAGE_ONE_FX._shakeDir = intensity * 0.5;
+  } else {
+    STAGE_ONE_FX._shakeDir = 0;
+  }
 }
 
 function spawnStageOneParticle(particle) {
@@ -472,6 +486,11 @@ function resetStageTwoFx() {
 function easeOutCubic(t) {
   const k = clamp(t, 0, 1);
   return 1 - (1 - k) * (1 - k) * (1 - k);
+}
+
+function easeInOutCubic(t) {
+  const k = clamp(t, 0, 1);
+  return k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
 }
 
 const input = {
@@ -1776,6 +1795,9 @@ function buildLevel() {
 
   // Stage 1 is boss-only: keep arena ground + billboard.
   addGround(3000, 1540);
+  addTower(3472, 150, 82, 246, "rgba(45, 72, 148, 0.72)");
+  addTower(3548, 66, 176, 330, "rgba(12, 24, 66, 0.92)");
+  addTower(3698, 134, 96, 262, "rgba(36, 58, 128, 0.78)");
   // Background billboards: worldbuilding (not sponsorship). Keep above playfield.
   addBillboard(3150, 154, 250, 136, "國民底氣回歸", "康貝特200P", [
     "7維他命補給",
@@ -1833,7 +1855,7 @@ function buildLevel() {
   };
 
   return {
-    spawn: { x: 3218, y: 318 },
+    spawn: { x: 3096, y: 318 },
     platforms: visiblePlatforms,
     coins: visibleCoins,
     enemies: visibleEnemies,
@@ -1912,6 +1934,7 @@ const game = {
   pendingAdOutcome: null,
   pendingDeathReason: null,
   pendingDeathBrand: null,
+  deathScene: null,
   stageTwo: null,
   stageTwoOutro: null,
   comboCount: 0,
@@ -1921,13 +1944,14 @@ const game = {
   deaths: 0,
   startedAt: 0,
   bossCutscene: null,
+  bossArrivalScene: null,
   pausedFromState: null,
   bossWarningShown: false,
   bossShockwaveHintShown: false,
   endingScene: null,
 };
 
-const STAGE_TWO_OUTRO_TOTAL_FRAMES = 780;
+const STAGE_TWO_OUTRO_TOTAL_FRAMES = 1060;
 
 function startStageTwoToBossCutscene(stageTwo) {
   const projectileBody = stageTwo?.projectile?.body;
@@ -1945,9 +1969,13 @@ function startStageTwoToBossCutscene(stageTwo) {
     timer: 0,
     impactX,
     impactY,
-    sfxPlayed: false,
-    glassPlayed: false,
+    heroBurstX: clamp(impactX - 96, 120, WIDTH - 280),
+    heroBurstY: (stageTwo?.groundY ?? 430) - 38,
+    impactPlayed: false,
     collapsePlayed: false,
+    aftershockPlayed: false,
+    rushPlayed: false,
+    towerRevealPlayed: false,
     slowmo: 0,
   };
   game.state = "stage2Outro";
@@ -2099,6 +2127,7 @@ function drawTransitionCan(image, x, y, h, rotation = 0, fallback = "#ef2a3e") {
 
 function drawTowerSceneTransition(tr, alpha) {
   const p = getTransitionVisualProgress(tr);
+  const showPant = tr?.showPant !== false;
   const open = easeOutCubic(clamp((p - 0.12) / 0.44, 0, 1));
   const towerGlow = clamp((p - 0.44) / 0.42, 0, 1);
   // Beat 3: hero at the base, then a fast pan-up to reveal the glowing dome/cage.
@@ -2370,8 +2399,13 @@ function drawTowerSceneTransition(tr, alpha) {
   }
   ctx.restore();
 
+  const climbStart = 0.3;
+  const climbDuration = 0.62;
+  const climbProgress = clamp((p - climbStart) / climbDuration, 0, 1);
+  const climb = easeInOutCubic(climbProgress);
+
   // Beat 3: hero stands at the base and looks up.
-  const baseHold = clamp((0.18 - p) / 0.18, 0, 1);
+  const baseHold = clamp((0.24 - p) / 0.24, 0, 1) * clamp((climbStart - p) / 0.05, 0, 1);
   if (baseHold > 0.001) {
     const x = towerX - 112;
     const y = towerY + towerH - 36 + Math.sin(p * 8) * 2;
@@ -2392,9 +2426,11 @@ function drawTowerSceneTransition(tr, alpha) {
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.clip();
-    if (!drawCoverImage(art.face, x - r, y - r, r * 2, r * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
-      ctx.fillStyle = "#f4cfaa";
-      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    if (!drawCoverImage(art.player, x - r, y - r, r * 2, r * 2, 0, 1.12, 0, 0)) {
+      if (!drawCoverImage(art.face, x - r, y - r, r * 2, r * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
+        ctx.fillStyle = "#f4cfaa";
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
     }
     ctx.restore();
 
@@ -2407,18 +2443,17 @@ function drawTowerSceneTransition(tr, alpha) {
     ctx.font = "bold 14px Avenir Next, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("（仰望能量巨塔…）", x, y - 40);
+    ctx.fillText("200p…就在那頂端。", x, y - 40);
     ctx.textBaseline = "alphabetic";
     ctx.restore();
   }
 
-  // Beat 4: hero head climbing the tower (simple, readable motion).
-  const climb = easeOutCubic(clamp((p - 0.26) / 0.54, 0, 1));
+  // Beat 4: hero head climbing the tower (slower, more deliberate ascent).
   let heroX = null;
   let heroY = null;
   if (climb > 0.001) {
     // Continuous climb (avoid “steppy” motion).
-    const bob = Math.sin(p * Math.PI * 16) * 2.8;
+    const bob = Math.sin(p * Math.PI * 11) * 2.2;
     const fromX = towerX - 28;
     const toX = towerRight - 18;
     const x = fromX + (toX - fromX) * (0.25 + climb * 0.75);
@@ -2439,9 +2474,11 @@ function drawTowerSceneTransition(tr, alpha) {
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.clip();
-    if (!drawCoverImage(art.face, x - r, y - r, r * 2, r * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
-      ctx.fillStyle = "#f4cfaa";
-      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    if (!drawCoverImage(art.player, x - r, y - r, r * 2, r * 2, 0, 1.12, 0, 0)) {
+      if (!drawCoverImage(art.face, x - r, y - r, r * 2, r * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
+        ctx.fillStyle = "#f4cfaa";
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
     }
     ctx.restore();
 
@@ -2838,7 +2875,7 @@ function drawTowerSceneTransition(tr, alpha) {
 
   // Beat 5: exhausted line after reaching the top.
   const pant = clamp((p - 0.86) / 0.12, 0, 1);
-  if (pant > 0.001 && heroX != null && heroY != null) {
+  if (showPant && pant > 0.001 && heroX != null && heroY != null) {
     ctx.save();
     ctx.globalAlpha = pant;
     const bubbleW = 204;
@@ -2875,7 +2912,7 @@ function drawTowerSceneTransition(tr, alpha) {
     ctx.font = "bold 14px Avenir Next, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("哈…哈…終於爬上來了…", heroX, bubbleY + bubbleH / 2 + 1);
+    ctx.fillText("哈…哈…總算殺上來了…", heroX, bubbleY + bubbleH / 2 + 1);
     ctx.textBaseline = "alphabetic";
     ctx.restore();
   }
@@ -3723,12 +3760,16 @@ function enterBossStageFromSlingshot() {
   game.player = createPlayer(level.spawn);
   game.player.prevX = game.player.x;
   game.player.prevY = game.player.y;
+  game.player.vx = 0;
+  game.player.vy = 0;
+  game.player.onGround = true;
+  game.player.jumpsRemaining = 2;
   game.stage = 1;
-  game.state = "running";
+  game.state = "bossArrival";
   game.coins = 0;
   game.elapsed = 0;
   game.timeLeft = STAGE_ONE_TIME_LIMIT;
-  game.cameraX = 0;
+  game.cameraX = clamp(game.player.x - WIDTH * 0.24, 0, level.worldWidth - WIDTH);
   game.checkpoint = { x: level.spawn.x, y: level.spawn.y };
   game.checkpointLabel = "起點";
   game.comboCount = 0;
@@ -3737,11 +3778,18 @@ function enterBossStageFromSlingshot() {
   game.stomps = 0;
   game.timeBoostEarned = 0;
   game.stageOneRating = 0;
-  game.overlayTimer = 110;
+  game.overlayTimer = 118;
   game.overlayText = `${hudBossStageName()}：決戰！能量之巔`;
   game.bossWarningShown = false;
   game.bossShockwaveHintShown = false;
   game.bossCutscene = null;
+  game.bossArrivalScene = {
+    phase: "walk",
+    phaseTimer: 0,
+    walkToX: BOSS_ARRIVAL_WALK_TO_X,
+    walkSpeed: BOSS_ARRIVAL_WALK_SPEED,
+    pantDuration: BOSS_ARRIVAL_PANT_FRAMES,
+  };
   game.pendingStageTransition = null;
   game.pendingStageTransitionTimer = 0;
   updateHud();
@@ -3768,10 +3816,9 @@ function updateStageTwo(frameScale) {
     outro.timer += frameScale;
     const t = outro.timer;
 
-    if (!outro.sfxPlayed) {
-      outro.sfxPlayed = true;
+    if (!outro.impactPlayed) {
+      outro.impactPlayed = true;
       soundFx.glassHit?.();
-      soundFx.canCollapse?.();
       triggerStageTwoShake(8);
       spawnStageTwoFlash(outro.impactX, outro.impactY, 42);
       for (let i = 0; i < 22; i += 1) {
@@ -3794,31 +3841,60 @@ function updateStageTwo(frameScale) {
       }
     }
 
-    // Glass shatter sound at t=15
-    if (t >= 15 && t < 17 && !outro.glassPlayed) {
-      outro.glassPlayed = true;
-      soundFx.glassHit?.();
-      spawnStageTwoFlash(outro.impactX + 8, outro.impactY - 4, 36);
-    }
-
-    // Collapse rumble sound at t=40
-    if (t >= 40 && t < 44 && !outro.collapsePlayed) {
+    // The collapse needs to feel like a second, heavier hit after the precise weak-point strike.
+    if (t >= 18 && !outro.collapsePlayed) {
       outro.collapsePlayed = true;
       soundFx.canCollapse?.();
       triggerStageTwoShake(6);
-      for (let i = 0; i < 16; i += 1) {
+      for (let i = 0; i < 24; i += 1) {
         spawnStageTwoDebris(outro.impactX, outro.impactY, "#9aa6bd", 1, {
-          speed: 2 + Math.random() * 4,
+          speed: 2.8 + Math.random() * 5.2,
           spread: Math.PI * 2,
-          drag: 0.9,
+          drag: 0.89,
           angle: 0,
           gravity: 0.06,
         });
       }
     }
 
-    // Slow-motion curve: deep freeze → gradual ramp
-    const slowmo = t < 100 ? 0.10 : t < 260 ? 0.18 : t < 420 ? 0.32 : t < 560 ? 0.55 : 0.75;
+    if (t >= 56 && !outro.aftershockPlayed) {
+      outro.aftershockPlayed = true;
+      soundFx.crateLand?.();
+      triggerStageTwoShake(4.5);
+      for (let i = 0; i < 18; i += 1) {
+        spawnStageTwoDebris(outro.impactX + (Math.random() - 0.5) * 90, outro.impactY + 12, "#cfd6de", 1, {
+          speed: 2.4 + Math.random() * 4.6,
+          spread: Math.PI * 1.8,
+          drag: 0.9,
+          angle: 0,
+          gravity: 0.07,
+        });
+      }
+    }
+
+    if (t >= 198 && !outro.rushPlayed) {
+      outro.rushPlayed = true;
+      soundFx.dash?.();
+    }
+
+    if (t >= 418 && !outro.towerRevealPlayed) {
+      outro.towerRevealPlayed = true;
+      soundFx.bonusPickup?.();
+    }
+
+    // Slow-motion curve: precise impact freeze -> avalanche collapse -> camera regains speed.
+    const slowmo =
+      t < 90
+        ? 0.08
+        : t < 220
+          ? 0.12
+          : t < 380
+            ? 0.22
+            : t < 580
+              ? 0.38
+              : t < 780
+                ? 0.56
+                : 0.78;
     outro.slowmo = slowmo;
     if (stageTwo.physics) {
       stageTwo.physics.step(frameScale * slowmo * (1000 / 60));
@@ -3829,11 +3905,11 @@ function updateStageTwo(frameScale) {
     }
 
     // Multi-pulse explosion bursts
-    if (t >= 10 && t < 12) {
+    if (t >= 8 && t < 12) {
       spawnStageTwoFlash(outro.impactX, outro.impactY, 56);
       triggerStageTwoShake(9);
     }
-    if (t >= 28 && t < 30) {
+    if (t >= 24 && t < 30) {
       spawnStageTwoFlash(outro.impactX + 12, outro.impactY - 8, 44);
       triggerStageTwoShake(7);
       for (let i = 0; i < 12; i += 1) {
@@ -3846,7 +3922,7 @@ function updateStageTwo(frameScale) {
         });
       }
     }
-    if (t >= 46 && t < 48) {
+    if (t >= 44 && t < 50) {
       spawnStageTwoFlash(outro.impactX - 10, outro.impactY + 6, 38);
       triggerStageTwoShake(6);
       for (let i = 0; i < 14; i += 1) {
@@ -3861,7 +3937,7 @@ function updateStageTwo(frameScale) {
     }
 
     // Continuous debris during collapse phase
-    if (t < 320 && Math.random() < 0.55) {
+    if (t < 340 && Math.random() < 0.62) {
       const x = outro.impactX + (Math.random() - 0.5) * 200;
       const y = outro.impactY + (Math.random() - 0.5) * 110;
       spawnStageTwoDebris(x, y, "rgba(210, 218, 230, 0.9)", 1, {

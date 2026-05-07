@@ -109,6 +109,7 @@ function resetRun() {
   game.pendingAdOutcome = null;
   game.pendingDeathReason = null;
   game.pendingDeathBrand = null;
+  game.deathScene = null;
   game.stageTwo = null;
   game.comboCount = 0;
   game.comboTimer = 0;
@@ -119,6 +120,7 @@ function resetRun() {
   game.stageOneRating = 0;
   resetCutsceneVideoUi();
   game.bossCutscene = null;
+  game.bossArrivalScene = null;
   game.pausedFromState = null;
   game.bossWarningShown = false;
   game.bossShockwaveHintShown = false;
@@ -135,6 +137,7 @@ function resetRun() {
 function respawnPlayer() {
   game.player = createPlayer(game.checkpoint);
   game.player.invincible = 120;
+  game.deathScene = null;
   game.cameraX = clamp(game.checkpoint.x - WIDTH * 0.28, 0, level.worldWidth - WIDTH);
   game.bossWarningShown = false;
   game.overlayTimer = 110;
@@ -226,6 +229,7 @@ function finishDeathAd() {
   game.pendingAdOutcome = null;
   game.pendingDeathReason = null;
   game.pendingDeathBrand = null;
+  game.deathScene = null;
   game.adTimer = 0;
 
   if (outcome === "gameover") {
@@ -239,21 +243,104 @@ function finishDeathAd() {
   game.state = "running";
 }
 
-function loseLife(reason, brand = null) {
-  if (game.state === "won" || game.state === "gameover" || game.state === "ad") {
+function updateDeathScene(frameScale) {
+  const death = game.deathScene;
+  if (!death) {
+    game.state = "ad";
+    game.adTimer = 0;
     return;
   }
+
+  death.timer += frameScale;
+  const holdFrames = death.holdFrames ?? PLAYER_DEATH_HOLD_FRAMES;
+
+  if (death.timer <= holdFrames) {
+    game.player.vx = 0;
+    game.player.vy = 0;
+  } else {
+    if (!death.launched) {
+      death.launched = true;
+      game.player.vx = 0;
+      game.player.vy = death.launchVy ?? PLAYER_DEATH_LAUNCH_VY;
+      for (let i = 0; i < 12; i += 1) {
+        spawnStageOneParticle({
+          x: game.player.x + game.player.w / 2,
+          y: game.player.y + game.player.h / 2,
+          vx: (Math.random() - 0.5) * 3.2,
+          vy: -1.6 - Math.random() * 2.6,
+          gravity: 0.16,
+          drag: 0.95,
+          life: 14 + Math.random() * 8,
+          maxLife: 22,
+          size: 2.1 + Math.random() * 1.8,
+          color: i % 3 === 0 ? "#fff3d6" : i % 2 === 0 ? "#ffd166" : "#ff7b20",
+        });
+      }
+    }
+    game.player.vy += (death.gravity ?? PLAYER_DEATH_GRAVITY) * frameScale;
+    game.player.y += game.player.vy * frameScale;
+  }
+
+  game.player.prevX = game.player.x;
+  game.player.prevY = game.player.y;
+  game.player.onGround = false;
+  game.player.jumpBuffer = 0;
+  game.player.coyote = 0;
+  game.player.jumpsRemaining = 0;
+  game.player.landingDust = 0;
+  game.player.runDustTimer = 0;
+  STAGE_ONE_FX.cameraZoomTarget = 1;
+
+  const targetCamera = clamp(game.player.x - WIDTH * 0.36, 0, level.worldWidth - WIDTH);
+  game.cameraX += (targetCamera - game.cameraX) * 0.14 * frameScale;
+  game.cameraX = clamp(game.cameraX, 0, level.worldWidth - WIDTH);
+
+  if (game.flashTimer > 0) {
+    game.flashTimer -= frameScale;
+  }
+  updateStageOneFx(frameScale);
+
+  if (
+    death.timer >= (death.totalFrames ?? PLAYER_DEATH_TOTAL_FRAMES) ||
+    game.player.y > HEIGHT + game.player.h + 48
+  ) {
+    game.state = "ad";
+    game.adTimer = 0;
+    game.deathScene = null;
+  }
+}
+
+function loseLife(reason, brand = null) {
+  if (game.state === "won" || game.state === "gameover" || game.state === "ad" || game.state === "dying") {
+    return;
+  }
+  clearInputState();
   game.lives -= 1;
   game.deaths = (game.deaths || 0) + 1;
   game.comboCount = 0;
   game.comboTimer = 0;
   game.flashTimer = 18;
-  game.state = "ad";
-  game.adTimer = 0;
+  game.state = "dying";
   game.adImpression += 1;
   game.pendingAdOutcome = game.lives <= 0 || reason === "time" ? "gameover" : "respawn";
   game.pendingDeathReason = reason;
   game.pendingDeathBrand = brand;
+  game.player.x = clamp(game.player.x, game.cameraX + 34, game.cameraX + WIDTH - game.player.w - 34);
+  game.player.y = clamp(game.player.y, 84, HEIGHT - game.player.h - 32);
+  game.player.prevX = game.player.x;
+  game.player.prevY = game.player.y;
+  game.player.vx = 0;
+  game.player.vy = 0;
+  game.player.facing = 1;
+  game.player.onGround = false;
+  game.deathScene = {
+    timer: 0,
+    holdFrames: PLAYER_DEATH_HOLD_FRAMES,
+    totalFrames: PLAYER_DEATH_TOTAL_FRAMES,
+    launchVy: PLAYER_DEATH_LAUNCH_VY,
+    gravity: PLAYER_DEATH_GRAVITY,
+    launched: false,
+  };
   triggerStageOneShake(8);
   soundFx.lose();
 }
@@ -295,6 +382,8 @@ function updateHud() {
       ? "200p重見天日"
       : game.state === "gameover"
         ? "逆襲失敗"
+        : game.state === "dying"
+          ? "康貝特斷電中"
         : game.state === "ad"
           ? "休息一下，馬上回來"
         : game.state === "intro"
@@ -2654,7 +2743,63 @@ function computeStageOneRating() {
 }
 
 function isStageOneTimerPaused() {
-  return Boolean(game.bossCutscene?.active);
+  return Boolean(game.bossCutscene?.active || game.state === "bossArrival" || game.state === "dying");
+}
+
+function updateBossArrivalScene(frameScale) {
+  const arrival = game.bossArrivalScene;
+  if (!arrival) {
+    game.state = "running";
+    return;
+  }
+
+  arrival.phaseTimer = (arrival.phaseTimer ?? 0) + frameScale;
+  game.player.vy = 0;
+  game.player.onGround = true;
+  game.player.jumpsRemaining = 2;
+  game.player.jumpBuffer = 0;
+  game.player.coyote = 0;
+  game.player.facing = 1;
+
+  if ((arrival.phase ?? "walk") === "walk") {
+    const walkToX = arrival.walkToX ?? BOSS_ARRIVAL_WALK_TO_X;
+    const walkSpeed = arrival.walkSpeed ?? BOSS_ARRIVAL_WALK_SPEED;
+    game.player.vx = walkSpeed;
+    game.player.x = Math.min(walkToX, game.player.x + walkSpeed * frameScale);
+    game.player.prevX = game.player.x;
+    game.player.prevY = game.player.y;
+
+    if (game.player.x >= walkToX - 0.01) {
+      game.player.x = walkToX;
+      game.player.vx = 0;
+      arrival.phase = "pant";
+      arrival.phaseTimer = 0;
+    }
+  } else {
+    game.player.vx = 0;
+    game.player.prevX = game.player.x;
+    game.player.prevY = game.player.y;
+  }
+
+  const lookAhead = (arrival.phase ?? "walk") === "walk" ? 0.24 : 0.28;
+  const targetCamera = clamp(game.player.x - WIDTH * lookAhead, 0, level.worldWidth - WIDTH);
+  game.cameraX += (targetCamera - game.cameraX) * 0.12 * frameScale;
+  game.cameraX = clamp(game.cameraX, 0, level.worldWidth - WIDTH);
+
+  if (game.overlayTimer > 0) {
+    game.overlayTimer -= frameScale;
+  }
+  if (game.flashTimer > 0) {
+    game.flashTimer -= frameScale;
+  }
+
+  if ((arrival.phase ?? "walk") === "pant" && arrival.phaseTimer >= (arrival.pantDuration ?? BOSS_ARRIVAL_PANT_FRAMES)) {
+    game.bossArrivalScene = null;
+    game.state = "running";
+    game.player.vx = 0;
+    game.player.prevX = game.player.x;
+    game.player.prevY = game.player.y;
+  }
 }
 
 function updateGoal() {
@@ -2714,8 +2859,8 @@ function step(frameScale) {
         startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
       }
     }
-    // Hard force if we're still stuck after ~13s (longer for the new cinematic).
-    if (game.stageTwoClearedFrames > 820) {
+    // Hard force only after the full bridge cinematic should have completed.
+    if (game.stageTwoClearedFrames > STAGE_TWO_OUTRO_TOTAL_FRAMES + 120) {
       game.stageTwoClearedFrames = 0;
       if (SLINGSHOT_FIRST_ORDER) {
         if (game.state === "stage2Outro") {
@@ -2772,6 +2917,12 @@ function step(frameScale) {
     return;
   }
 
+  if (game.state === "bossArrival") {
+    updateBossArrivalScene(frameScale);
+    updateHud();
+    return;
+  }
+
   if (game.state === "finalVideo") {
     updateHud();
     return;
@@ -2794,6 +2945,12 @@ function step(frameScale) {
     if (game.state === "won") {
       updateWinFx(frameScale);
     }
+    updateHud();
+    return;
+  }
+
+  if (game.state === "dying") {
+    updateDeathScene(frameScale);
     updateHud();
     return;
   }
