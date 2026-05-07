@@ -9198,6 +9198,10 @@ canvas.addEventListener(
     if (!touch) return;
     unlockAudio();
     stageTwoTouchId = touch.identifier;
+    // On mobile Safari, preventing default early avoids "ghost click" / scroll gestures.
+    if (game.stage === 2 && game.stageTwo && (game.state === "stage2Intro" || game.state === "stage2Playing")) {
+      event.preventDefault();
+    }
     stageTwoTouchActive = beginStageTwoDrag(getCanvasPointFromClient(touch.clientX, touch.clientY));
     if (stageTwoTouchActive) {
       event.preventDefault();
@@ -9212,6 +9216,19 @@ canvas.addEventListener(
       return;
     }
     const touch = getTrackedTouch(event) || (event.changedTouches && event.changedTouches[0]);
+    if (!touch) return;
+    updateStageTwoDrag(getCanvasPointFromClient(touch.clientX, touch.clientY));
+    event.preventDefault();
+  },
+  { passive: false }
+);
+window.addEventListener(
+  "touchmove",
+  (event) => {
+    if (!stageTwoTouchActive || !game.stageTwo || !game.stageTwo.dragging) {
+      return;
+    }
+    const touch = getTrackedTouch(event);
     if (!touch) return;
     updateStageTwoDrag(getCanvasPointFromClient(touch.clientX, touch.clientY));
     event.preventDefault();
