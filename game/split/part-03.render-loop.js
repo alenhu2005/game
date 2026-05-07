@@ -2399,18 +2399,8 @@ function beginStageTwoDrag(point) {
 
   const grabRadius = isCoarseStageTwoInput() ? 132 : 48;
 
-  // On phones, it's easy to miss the projectile on first touch.
-  // If we're still on the intro prompt, treat the first touch as "start + grab"
-  // so players can immediately drag to aim.
   if (game.state === "stage2Intro") {
     enterStageTwoPlaying();
-    game.stageTwo.dragging = true;
-    projectile.state = "dragging";
-    if (physics) {
-      physics.cancelSling();
-    }
-    updateStageTwoDrag(point);
-    return true;
   }
 
   if (!isStageTwoGrabPoint(point, distance, grabRadius)) {

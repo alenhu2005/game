@@ -326,10 +326,6 @@ canvas.addEventListener("pointerdown", (event) => {
 
   if (game.state === "intro") {
     startStageOneRun();
-    if (SLINGSHOT_FIRST_ORDER && startStageTwoPointerDrag(point, event)) {
-      event.preventDefault();
-      return;
-    }
     event.preventDefault();
     return;
   }
@@ -414,6 +410,8 @@ canvas.addEventListener(
     const point = getCanvasPointFromClient(touch.clientX, touch.clientY);
     if (game.state === "intro" && SLINGSHOT_FIRST_ORDER) {
       startStageOneRun();
+      event.preventDefault();
+      return;
     }
     stageTwoDragStartPoint = point;
     stageTwoDragMoved = false;
