@@ -8776,7 +8776,6 @@ function beginStageTwoDrag(point) {
     if (physics) {
       physics.cancelSling();
     }
-    updateStageTwoDrag(point);
     return true;
   }
 
