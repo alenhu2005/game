@@ -9109,6 +9109,11 @@ if (window.visualViewport) {
 try {
   window.matchMedia("(max-width: 820px)").addEventListener("change", syncMobileControlsVisibility);
 } catch (_) {}
+
+// Stage 2 slingshot drag state (pointer-first).
+let stageTwoDragPointerId = null;
+let stageTwoDragStartPoint = null;
+let stageTwoDragMoved = false;
 canvas.addEventListener("pointerdown", (event) => {
   unlockAudio();
 
@@ -9220,9 +9225,6 @@ window.addEventListener("pointerdown", unlockAudio);
 
 // Fallback for older iOS Safari / webviews where Pointer Events can be flaky.
 // Keep this minimal: just forward primary touch to the same stage-two drag logic.
-let stageTwoDragPointerId = null;
-let stageTwoDragStartPoint = null;
-let stageTwoDragMoved = false;
 let stageTwoTouchActive = false;
 let stageTwoTouchId = null;
 function getTrackedTouch(event) {
