@@ -9114,11 +9114,10 @@ try {
 let stageTwoDragPointerId = null;
 let stageTwoDragStartPoint = null;
 let stageTwoDragMoved = false;
+let stageTwoLastTouchPointerDownAt = 0;
 canvas.addEventListener("pointerdown", (event) => {
   unlockAudio();
-  if (event.pointerType === "touch") {
-    stageTwoLastTouchPointerDownAt = Date.now();
-  }
+  if (event.pointerType === "touch") stageTwoLastTouchPointerDownAt = Date.now();
 
   if (game.state === "finalVideo") {
     event.preventDefault();
@@ -9184,6 +9183,8 @@ canvas.addEventListener("pointermove", (event) => {
   if (!game.stageTwo || !game.stageTwo.dragging) {
     return;
   }
+  // If we had to fall back to touch events, don't double-apply movement here.
+  if (stageTwoTouchActive) return;
   if (stageTwoDragPointerId != null && event.pointerId !== stageTwoDragPointerId) {
     return;
   }
@@ -9242,66 +9243,99 @@ function getTrackedTouch(event) {
   }
   return null;
 }
-if (!("PointerEvent" in window)) {
-  canvas.addEventListener(
-    "touchstart",
-    (event) => {
-      if (stageTwoTouchActive) return;
-      const touch = event.changedTouches && event.changedTouches[0];
-      if (!touch) return;
-      unlockAudio();
-      stageTwoTouchId = touch.identifier;
-      // On mobile Safari, preventing default early avoids "ghost click" / scroll gestures.
-      if (game.stage === 2 && game.stageTwo && (game.state === "stage2Intro" || game.state === "stage2Playing")) {
-        event.preventDefault();
-      }
-      stageTwoTouchActive = beginStageTwoDrag(getCanvasPointFromClient(touch.clientX, touch.clientY));
-      if (stageTwoTouchActive) {
-        event.preventDefault();
-      }
-    },
-    { passive: false }
-  );
-  canvas.addEventListener(
-    "touchmove",
-    (event) => {
-      if (!stageTwoTouchActive || !game.stageTwo || !game.stageTwo.dragging) {
-        return;
-      }
-      const touch = getTrackedTouch(event) || (event.changedTouches && event.changedTouches[0]);
-      if (!touch) return;
-      updateStageTwoDrag(getCanvasPointFromClient(touch.clientX, touch.clientY));
+canvas.addEventListener(
+  "touchstart",
+  (event) => {
+    if (stageTwoTouchActive) return;
+    const touch = event.changedTouches && event.changedTouches[0];
+    if (!touch) return;
+
+    // If a touch pointerdown just fired but pointermove is unreliable, let touch take over
+    // for movement/release. If a pointer drag hasn't started, ignore to avoid double-starting.
+    const recentPointerTouch = Date.now() - stageTwoLastTouchPointerDownAt < 650;
+    if (recentPointerTouch && !(game.stageTwo && game.stageTwo.dragging && stageTwoDragPointerId != null)) {
+      return;
+    }
+
+    unlockAudio();
+    stageTwoTouchId = touch.identifier;
+
+    // On mobile Safari, preventing default early avoids "ghost click" / scroll gestures.
+    if (game.stage === 2 && game.stageTwo && (game.state === "stage2Intro" || game.state === "stage2Playing")) {
       event.preventDefault();
-    },
-    { passive: false }
-  );
-  window.addEventListener(
-    "touchmove",
-    (event) => {
-      if (!stageTwoTouchActive || !game.stageTwo || !game.stageTwo.dragging) {
-        return;
-      }
-      const touch = getTrackedTouch(event);
-      if (!touch) return;
-      updateStageTwoDrag(getCanvasPointFromClient(touch.clientX, touch.clientY));
+    }
+
+    const point = getCanvasPointFromClient(touch.clientX, touch.clientY);
+    stageTwoDragStartPoint = point;
+    stageTwoDragMoved = false;
+
+    // If pointerdown already started the drag, just attach the touch stream.
+    if (game.stageTwo && game.stageTwo.dragging) {
+      stageTwoTouchActive = true;
       event.preventDefault();
-    },
-    { passive: false }
-  );
-  function endStageTwoTouchDrag(event) {
-    if (!stageTwoTouchActive) return;
+      return;
+    }
+
+    stageTwoTouchActive = beginStageTwoDrag(point);
+    if (stageTwoTouchActive) {
+      event.preventDefault();
+    }
+  },
+  { passive: false }
+);
+canvas.addEventListener(
+  "touchmove",
+  (event) => {
+    if (!stageTwoTouchActive || !game.stageTwo || !game.stageTwo.dragging) {
+      return;
+    }
+    const touch = getTrackedTouch(event) || (event.changedTouches && event.changedTouches[0]);
+    if (!touch) return;
+    const point = getCanvasPointFromClient(touch.clientX, touch.clientY);
+    if (stageTwoDragStartPoint && !stageTwoDragMoved) {
+      if (Math.hypot(point.x - stageTwoDragStartPoint.x, point.y - stageTwoDragStartPoint.y) > 10) {
+        stageTwoDragMoved = true;
+      }
+    }
+    updateStageTwoDrag(point);
+    event.preventDefault();
+  },
+  { passive: false }
+);
+window.addEventListener(
+  "touchmove",
+  (event) => {
+    if (!stageTwoTouchActive || !game.stageTwo || !game.stageTwo.dragging) {
+      return;
+    }
     const touch = getTrackedTouch(event);
     if (!touch) return;
-    stageTwoTouchActive = false;
-    stageTwoTouchId = null;
-    releaseStageTwoDrag();
+    const point = getCanvasPointFromClient(touch.clientX, touch.clientY);
+    if (stageTwoDragStartPoint && !stageTwoDragMoved) {
+      if (Math.hypot(point.x - stageTwoDragStartPoint.x, point.y - stageTwoDragStartPoint.y) > 10) {
+        stageTwoDragMoved = true;
+      }
+    }
+    updateStageTwoDrag(point);
     event.preventDefault();
-  }
-  canvas.addEventListener("touchend", endStageTwoTouchDrag, { passive: false });
-  canvas.addEventListener("touchcancel", endStageTwoTouchDrag, { passive: false });
-  window.addEventListener("touchend", endStageTwoTouchDrag, { passive: false });
-  window.addEventListener("touchcancel", endStageTwoTouchDrag, { passive: false });
+  },
+  { passive: false }
+);
+function endStageTwoTouchDrag(event) {
+  if (!stageTwoTouchActive) return;
+  const touch = getTrackedTouch(event);
+  if (!touch) return;
+  stageTwoTouchActive = false;
+  stageTwoTouchId = null;
+  stageTwoDragStartPoint = null;
+  stageTwoDragMoved = false;
+  releaseStageTwoDrag();
+  event.preventDefault();
 }
+canvas.addEventListener("touchend", endStageTwoTouchDrag, { passive: false });
+canvas.addEventListener("touchcancel", endStageTwoTouchDrag, { passive: false });
+window.addEventListener("touchend", endStageTwoTouchDrag, { passive: false });
+window.addEventListener("touchcancel", endStageTwoTouchDrag, { passive: false });
 
 function bindTouchHold(button, onPress, onRelease) {
   if (!button) return;
