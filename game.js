@@ -3,7 +3,7 @@ const ctx = canvas.getContext("2d");
 
 const WIDTH = 960;
 const HEIGHT = 540;
-const BUILD_ID = "20260507-landscape-js";
+const BUILD_ID = "20260507-no-zoom";
 
 function configureCanvas() {
   const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
@@ -41,6 +41,8 @@ const cutsceneVideoStage = document.querySelector(".video-overlay__stage");
 const cutsceneVideo = document.getElementById("cutsceneVideo");
 const cutsceneVideoHint = document.getElementById("cutsceneVideoHint");
 const portraitBlockerEl = document.getElementById("portraitBlocker");
+const gameShellEl = document.getElementById("gameShell");
+const fullscreenButton = document.getElementById("fullscreenButton");
 
 const FLOOR_Y = 408;
 const GRAVITY = 0.56;
@@ -8965,7 +8967,84 @@ if (cutsceneVideoOverlay) {
   });
 }
 
+function getFullscreenElement() {
+  return (
+    document.fullscreenElement ||
+    document.webkitFullscreenElement ||
+    document.msFullscreenElement ||
+    null
+  );
+}
+
+function gameShellIsFullscreen() {
+  return !!gameShellEl && getFullscreenElement() === gameShellEl;
+}
+
+function gameFullscreenApiSupported() {
+  if (!gameShellEl) return false;
+  return !!(
+    gameShellEl.requestFullscreen ||
+    gameShellEl.webkitRequestFullscreen ||
+    gameShellEl.msRequestFullscreen
+  );
+}
+
+function syncFullscreenButtonUI() {
+  if (!fullscreenButton || !gameShellEl) return;
+  const supported = gameFullscreenApiSupported();
+  fullscreenButton.toggleAttribute("hidden", !supported);
+  if (!supported) return;
+  const active = gameShellIsFullscreen();
+  fullscreenButton.textContent = active ? "退出全螢幕" : "全螢幕";
+  fullscreenButton.setAttribute("aria-pressed", active ? "true" : "false");
+  fullscreenButton.setAttribute("aria-label", active ? "退出全螢幕" : "進入全螢幕");
+}
+
+async function toggleGameFullscreen() {
+  if (!gameShellEl || !gameFullscreenApiSupported()) return;
+  unlockAudio();
+  try {
+    if (gameShellIsFullscreen()) {
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      else if (document.msExitFullscreen) document.msExitFullscreen();
+    } else if (gameShellEl.requestFullscreen) {
+      await gameShellEl.requestFullscreen();
+    } else if (gameShellEl.webkitRequestFullscreen) {
+      gameShellEl.webkitRequestFullscreen();
+    } else if (gameShellEl.msRequestFullscreen) {
+      gameShellEl.msRequestFullscreen();
+    }
+  } catch (_) {}
+  requestAnimationFrame(() => {
+    configureCanvas();
+    layoutCutsceneVideo();
+    syncFullscreenButtonUI();
+    tryLockLandscape();
+  });
+}
+
+function onFullscreenChanged() {
+  configureCanvas();
+  layoutCutsceneVideo();
+  syncFullscreenButtonUI();
+  syncMobileControlsVisibility();
+  syncPortraitBlockerA11y();
+  tryLockLandscape();
+}
+
+document.addEventListener("fullscreenchange", onFullscreenChanged);
+document.addEventListener("webkitfullscreenchange", onFullscreenChanged);
+document.addEventListener("MSFullscreenChange", onFullscreenChanged);
+
+if (fullscreenButton) {
+  fullscreenButton.addEventListener("click", () => {
+    toggleGameFullscreen();
+  });
+}
+
 configureCanvas();
+syncFullscreenButtonUI();
 syncPortraitBlockerA11y();
 window.addEventListener("orientationchange", () => {
   syncPortraitBlockerA11y();

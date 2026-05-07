@@ -2,7 +2,10 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no"
+    />
     <!-- 修正 GitHub Pages 等環境：網址若為 /repo 而無結尾 /，相對路徑 assets/… 會請求錯誤位置 -->
     <base href="./" />
     <script>
@@ -19,7 +22,7 @@
   </head>
   <body>
     <main class="page">
-      <section class="game-shell">
+      <section id="gameShell" class="game-shell">
         <canvas id="game" width="960" height="540" aria-label="Platform game ad"></canvas>
         <div
           id="touchControls"
@@ -43,6 +46,15 @@
             </button>
           </div>
         </div>
+        <button
+          id="fullscreenButton"
+          class="hud-button hud-button--fullscreen"
+          type="button"
+          aria-label="進入全螢幕"
+          aria-pressed="false"
+        >
+          全螢幕
+        </button>
         <button id="skipButton" class="hud-button" type="button" aria-label="跳關">
           跳關
         </button>
@@ -89,6 +101,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
-    <script src="game.js?v=20260507-landscape-js"></script>
+    <script src="game.js?v=20260507-no-zoom"></script>
   </body>
 </html>
