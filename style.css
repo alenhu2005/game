@@ -17,6 +17,9 @@
 html {
   touch-action: manipulation;
   -webkit-text-size-adjust: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 html,
@@ -28,6 +31,9 @@ body {
 body {
   min-height: 100vh;
   min-height: 100dvh;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
   overscroll-behavior: none;
   display: grid;
   place-items: center;
