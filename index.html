@@ -18,7 +18,7 @@
       })();
     </script>
     <title>康貝特 200P 期末衝刺場</title>
-    <link rel="stylesheet" href="style.css?v=20260507-no-select" />
+    <link rel="stylesheet" href="style.css?v=20260510-no-double-tap-zoom" />
   </head>
   <body>
     <main class="page">
@@ -62,7 +62,7 @@
               src="assets/marketing/inserted-video.mp4"
             ></video>
           </div>
-          <div id="cutsceneVideoHint" class="video-overlay__hint">影片播放中 · 點一下可略過</div>
+          <div id="cutsceneVideoHint" class="video-overlay__hint">影片自動播放中…</div>
         </div>
       </section>
 
@@ -75,7 +75,34 @@
       </div>
     </main>
 
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        function blockGesture(e) {
+          e.preventDefault();
+        }
+        document.addEventListener("gesturestart", blockGesture, { passive: false });
+        document.addEventListener("gesturechange", blockGesture, { passive: false });
+        document.addEventListener("gestureend", blockGesture, { passive: false });
+
+        var shell = document.querySelector(".game-shell");
+        if (shell) {
+          var lastTouchEnd = 0;
+          shell.addEventListener(
+            "touchend",
+            function (e) {
+              var now = Date.now();
+              if (now - lastTouchEnd < 400) {
+                e.preventDefault();
+              }
+              lastTouchEnd = now;
+            },
+            { passive: false }
+          );
+        }
+      });
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
-    <script src="game.js?v=20260507-no-select"></script>
+    <script src="game.js?v=20260508-video-autoplay"></script>
   </body>
 </html>

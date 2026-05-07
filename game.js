@@ -3,17 +3,36 @@ const ctx = canvas.getContext("2d");
 
 const WIDTH = 960;
 const HEIGHT = 540;
-const BUILD_ID = "20260507-no-select";
+const BUILD_ID = "20260509-stage-order-swap";
+
+/** true = 先彈弓（原第二關）再 Boss（原第一關） */
+const SLINGSHOT_FIRST_ORDER = true;
+
+function hudSlingStageName() {
+  return SLINGSHOT_FIRST_ORDER ? "第一關" : "第二關";
+}
+
+function hudBossStageName() {
+  return SLINGSHOT_FIRST_ORDER ? "第二關" : "第一關";
+}
+
+/** 手機／高分螢幕提高清晰度：較高 DPR 上限 + 像素對齊避免糊邊 */
+const CANVAS_MAX_DEVICE_PIXEL_RATIO = 4;
 
 function configureCanvas() {
-  const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
   const rect = canvas.getBoundingClientRect();
   if (!rect.width || !rect.height) {
     return;
   }
 
-  const backingWidth = Math.round(rect.width * dpr);
-  const backingHeight = Math.round(rect.height * dpr);
+  const raw =
+    typeof window.devicePixelRatio === "number" && window.devicePixelRatio > 0
+      ? window.devicePixelRatio
+      : 1;
+  const dpr = Math.min(Math.max(raw, 1), CANVAS_MAX_DEVICE_PIXEL_RATIO);
+
+  const backingWidth = Math.ceil(rect.width * dpr);
+  const backingHeight = Math.ceil(rect.height * dpr);
 
   if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
     canvas.width = backingWidth;
@@ -112,11 +131,17 @@ const BOSS_INTRO_EXCHANGE = [
   { speaker: "player", line: BOSS_INTRO_LINES_PLAYER[2] },
 ];
 
-const BOSS_VICTORY_EXCHANGE = [
-  { speaker: "player", line: "「呼——搞定。壓力沒了，腦袋反而更清醒。」" },
-  { speaker: "player", line: "「剩下的就用彈弓收工，把競品堡壘清到一塊不剩。」" },
-  { speaker: "player", line: "「喝了再上——這次是最後衝刺！」" },
-];
+const BOSS_VICTORY_EXCHANGE = SLINGSHOT_FIRST_ORDER
+  ? [
+      { speaker: "player", line: "「呼——堡壘早清空了，Boss 這拳拳到肉。」" },
+      { speaker: "player", line: "「彈弓開路、腳下收尾——這才叫全線通關。」" },
+      { speaker: "player", line: "「喝了再上——最後一局，直接結帳！」" },
+    ]
+  : [
+      { speaker: "player", line: "「呼——搞定。壓力沒了，腦袋反而更清醒。」" },
+      { speaker: "player", line: "「剩下的就用彈弓收工，把競品堡壘清到一塊不剩。」" },
+      { speaker: "player", line: "「喝了再上——這次是最後衝刺！」" },
+    ];
 const DEATH_AD_DURATION = 360;
 const DEATH_AD_SKIP_AT = 90;
 const AUDIO_MASTER_GAIN = 0.16;
@@ -1688,6 +1713,9 @@ const game = {
 };
 
 function enterWonResults() {
+  if (game.stageTwo) {
+    game.stage = 2;
+  }
   game.state = "won";
   game.winFx = createWinFx();
   game.overlayTimer = 9999;
@@ -1704,6 +1732,13 @@ const SCENE_TR_BOSS_TO_STAGE2 = {
   inFrames: 48,
   caption: "前往第二關",
   captionSub: "彈弓清場",
+};
+const SCENE_TR_SLINGSHOT_TO_BOSS = {
+  outFrames: 48,
+  holdFrames: 26,
+  inFrames: 48,
+  caption: "前往第二關",
+  captionSub: "Boss 決戰",
 };
 const SCENE_TR_TO_ENDING = {
   outFrames: 52,
@@ -2587,7 +2622,38 @@ function enterStageTwo() {
   game.stageTwoClearHandled = false;
   game.cameraX = 0;
   game.overlayTimer = 0;
-  game.overlayText = "第二關：彈弓打競品";
+  game.overlayText = SLINGSHOT_FIRST_ORDER ? "第一關：彈弓打競品" : "第二關：彈弓打競品";
+}
+
+function enterBossStageFromSlingshot() {
+  resetStageOneWorldEntities();
+  resetStageOneFx();
+  game.player = createPlayer(level.spawn);
+  game.player.prevX = game.player.x;
+  game.player.prevY = game.player.y;
+  game.stage = 1;
+  game.state = "running";
+  game.coins = 0;
+  game.elapsed = 0;
+  game.timeLeft = STAGE_ONE_TIME_LIMIT;
+  game.cameraX = 0;
+  game.checkpoint = { x: level.spawn.x, y: level.spawn.y };
+  game.checkpointLabel = "起點";
+  game.comboCount = 0;
+  game.comboTimer = 0;
+  game.comboBest = 0;
+  game.stomps = 0;
+  game.timeBoostEarned = 0;
+  game.stageOneRating = 0;
+  game.overlayTimer = 110;
+  game.overlayText = `${hudBossStageName()}：Boss 戰 — 往右前進`;
+  game.bossWarningShown = false;
+  game.bossShockwaveHintShown = false;
+  game.bossCutscene = null;
+  game.pendingStageTransition = null;
+  game.pendingStageTransitionTimer = 0;
+  updateHud();
+  soundFx.start();
 }
 
 function updateStageTwo(frameScale) {
@@ -2712,7 +2778,11 @@ function updateStageTwo(frameScale) {
   if (isStageTwoCleared(stageTwo)) {
     if (!game.stageTwoClearHandled) {
       game.stageTwoClearHandled = true;
-      startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
+      if (SLINGSHOT_FIRST_ORDER) {
+        startSceneTransition(() => enterBossStageFromSlingshot(), SCENE_TR_SLINGSHOT_TO_BOSS);
+      } else {
+        startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
+      }
     }
     return;
   }
@@ -2725,7 +2795,7 @@ function updateStageTwo(frameScale) {
   ) {
     game.state = "gameover";
     game.overlayTimer = 9999;
-    game.overlayText = "第二關彈藥打完了";
+    game.overlayText = `${hudSlingStageName()}彈藥打完了`;
   }
 }
 
@@ -2802,20 +2872,16 @@ function startFinalVictoryVideo() {
   game.finalVictoryVideo = { active: true };
   game.state = "finalVideo";
   setCutsceneVideoVisible(true);
-  cutsceneVideo.muted = !audio.enabled;
   cutsceneVideo.currentTime = 0;
   cutsceneVideo.style.width = "";
   cutsceneVideo.style.height = "";
   layoutCutsceneVideo();
   requestAnimationFrame(() => {
     layoutCutsceneVideo();
+    void playCutsceneVideoAutoplay();
   });
   if (cutsceneVideoHint) {
-    cutsceneVideoHint.textContent = "勝利回放 · 點一下可略過";
-  }
-  const playPromise = cutsceneVideo.play();
-  if (playPromise && typeof playPromise.catch === "function") {
-    playPromise.catch(() => {});
+    cutsceneVideoHint.textContent = CUTSCENE_VIDEO_HINT_PLAYING;
   }
 }
 
@@ -2976,6 +3042,13 @@ function startStageOneRun() {
   if (game.state !== "intro") {
     return;
   }
+  if (SLINGSHOT_FIRST_ORDER) {
+    enterStageTwo();
+    game.overlayTimer = 110;
+    game.overlayText = "第一關：拖曳 200P 發射，清空所有目標";
+    soundFx.start();
+    return;
+  }
   game.state = "running";
   game.overlayTimer = 84;
   game.overlayText = "往右走靠近 Boss，會先播對話再開打";
@@ -2988,7 +3061,7 @@ function enterStageTwoPlaying() {
   }
   game.state = "stage2Playing";
   game.overlayTimer = 110;
-  game.overlayText = "抓住左下角 200P 發射";
+  game.overlayText = `${hudSlingStageName()}：抓住 200P 發射`;
   soundFx.start();
 }
 
@@ -3089,7 +3162,7 @@ function togglePause() {
   return true;
 }
 
-function resetRun() {
+function resetStageOneWorldEntities() {
   for (let ei = level.enemies.length - 1; ei >= 0; ei -= 1) {
     if (level.enemies[ei].bossMinion) {
       level.enemies.splice(ei, 1);
@@ -3174,6 +3247,10 @@ function resetRun() {
       bc.collected = false;
     });
   }
+}
+
+function resetRun() {
+  resetStageOneWorldEntities();
   resetStageOneFx();
   resetStageTwoFx();
   game.player = createPlayer(level.spawn);
@@ -3342,20 +3419,21 @@ function updateHud() {
     const clearedPercent = Math.round(getStageTwoProgress() * 100);
     const pullPercent = Math.round(getStageTwoPullRatio() * 100);
     const targetsLeft = countStageTwoActiveTargets(game.stageTwo);
+    const s1 = hudSlingStageName();
     statusPill.textContent =
       game.state === "paused"
-        ? "第二關已暫停"
+        ? `${s1}已暫停`
         : game.state === "won"
         ? "兩關都過了"
         : game.state === "gameover"
-          ? "第二關失手"
+          ? `${s1}失手`
           : game.state === "stage2Intro"
             ? "點一下進場，再拖曳 200P"
             : game.stageTwo.dragging
-              ? `第二關 拉力 ${pullPercent}%`
+              ? `${s1} 拉力 ${pullPercent}%`
               : game.stageTwo.shotsLeft === 1
-                ? "第二關 最後一發，瞄準一點"
-            : `第二關 ${clearedPercent}% 已清場`;
+                ? `${s1} 最後一發，瞄準一點`
+            : `${s1} ${clearedPercent}% 已清場`;
     coinsPill.textContent = `彈藥 ${game.stageTwo.shotsLeft}`;
     livesPill.textContent = `目標 ${targetsLeft}`;
     timerPill.textContent = `分數 ${game.stageTwo.score}`;
@@ -3365,9 +3443,10 @@ function updateHud() {
   }
 
   const stageOnePercent = Math.round(getStageOneProgress() * 100);
+  const bn = hudBossStageName();
   statusPill.textContent =
     game.state === "paused"
-      ? "第一關已暫停"
+      ? `${bn}已暫停`
       : game.state === "won"
       ? "作業交件成功"
       : game.state === "gameover"
@@ -3375,7 +3454,9 @@ function updateHud() {
         : game.state === "ad"
           ? "休息一下，馬上回來"
         : game.state === "intro"
-          ? "點一下或按 Space 開始"
+          ? SLINGSHOT_FIRST_ORDER
+            ? "點一下開始：第一關彈弓清場"
+            : "點一下或按 Space 開始"
           : isNearBossArena()
             ? "前方 Boss 區，踩穩再進"
           : `${game.checkpointLabel} ${stageOnePercent}%`;
@@ -5131,6 +5212,33 @@ function layoutCutsceneVideo() {
   cutsceneVideo.style.height = `${Math.round(videoHeight * scale)}px`;
 }
 
+const CUTSCENE_VIDEO_HINT_PLAYING = "影片播放中…";
+
+async function playCutsceneVideoAutoplay() {
+  if (!cutsceneVideo) {
+    return;
+  }
+  const preferSound = audio.enabled;
+
+  cutsceneVideo.muted = !preferSound;
+  try {
+    await cutsceneVideo.play();
+  } catch (_) {
+    cutsceneVideo.muted = true;
+    try {
+      await cutsceneVideo.play();
+    } catch (_) {
+      return;
+    }
+  }
+
+  if (preferSound && cutsceneVideo.muted) {
+    try {
+      cutsceneVideo.muted = false;
+    } catch (_) {}
+  }
+}
+
 function resetCutsceneVideoUi() {
   setCutsceneVideoVisible(false);
   if (cutsceneVideo) {
@@ -5138,7 +5246,7 @@ function resetCutsceneVideoUi() {
     cutsceneVideo.currentTime = 0;
   }
   if (cutsceneVideoHint) {
-    cutsceneVideoHint.textContent = "影片播放中 · 點一下可略過";
+    cutsceneVideoHint.textContent = CUTSCENE_VIDEO_HINT_PLAYING;
   }
 }
 
@@ -5169,50 +5277,17 @@ function startBossInsertVideo() {
   cs.videoStarted = true;
   cs.videoPlaying = true;
   setCutsceneVideoVisible(true);
-  cutsceneVideo.muted = !audio.enabled;
   cutsceneVideo.currentTime = 0;
   cutsceneVideo.style.width = "";
   cutsceneVideo.style.height = "";
   layoutCutsceneVideo();
   requestAnimationFrame(() => {
     layoutCutsceneVideo();
+    void playCutsceneVideoAutoplay();
   });
   if (cutsceneVideoHint) {
-    cutsceneVideoHint.textContent = "影片播放中 · 點一下可略過";
+    cutsceneVideoHint.textContent = CUTSCENE_VIDEO_HINT_PLAYING;
   }
-
-  const playPromise = cutsceneVideo.play();
-  if (playPromise && typeof playPromise.catch === "function") {
-    playPromise.catch(() => {
-      cs.videoPlaying = false;
-      if (cutsceneVideoHint) {
-        cutsceneVideoHint.textContent = "點一下播放影片";
-      }
-    });
-  }
-}
-
-function handleBossInsertVideoPointerDown() {
-  const cs = game.bossCutscene;
-  if (!cs || cs.phase !== BOSS_INTRO_VIDEO_PHASE || !cutsceneVideo) {
-    return false;
-  }
-
-  if (cutsceneVideo.paused && cutsceneVideo.currentTime < 0.1) {
-    cutsceneVideo.muted = !audio.enabled;
-    if (cutsceneVideoHint) {
-      cutsceneVideoHint.textContent = "影片播放中 · 點一下可略過";
-    }
-    const playPromise = cutsceneVideo.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {});
-    }
-    cs.videoPlaying = true;
-    return true;
-  }
-
-  finishBossInsertVideo();
-  return true;
 }
 
 function tryStartBossIntroCutscene() {
@@ -5406,10 +5481,10 @@ function updateBossIntroCutscene(frameScale) {
     }
     if (cs.timer >= BOSS_VICTORY_CUTSCENE_FRAMES) {
       finishBossMiniCutscene();
-      game.pendingStageTransition = "stage2";
+      game.pendingStageTransition = SLINGSHOT_FIRST_ORDER ? "toEndingAfterBoss" : "stage2";
       game.pendingStageTransitionTimer = Math.max(game.pendingStageTransitionTimer ?? 0, 36);
       game.overlayTimer = 108;
-      game.overlayText = "勝利！準備進第二關";
+      game.overlayText = SLINGSHOT_FIRST_ORDER ? "勝利！準備結局演出" : "勝利！準備進第二關";
     }
     return;
   }
@@ -5635,8 +5710,13 @@ function updateGoal() {
       return;
     }
     game.stageOneRating = computeStageOneRating();
-    enterStageTwo();
-    game.overlayText = `第一關過關，收了 ${game.coins} 罐`;
+    if (SLINGSHOT_FIRST_ORDER) {
+      startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
+      game.overlayText = `第二關過關，收了 ${game.coins} 罐`;
+    } else {
+      enterStageTwo();
+      game.overlayText = `第一關過關，收了 ${game.coins} 罐`;
+    }
     soundFx.win();
   }
 }
@@ -5659,12 +5739,20 @@ function step(frameScale) {
     game.stageTwoClearedFrames += frameScale;
     if (!game.stageTwoClearHandled) {
       game.stageTwoClearHandled = true;
-      startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
+      if (SLINGSHOT_FIRST_ORDER) {
+        startSceneTransition(() => enterBossStageFromSlingshot(), SCENE_TR_SLINGSHOT_TO_BOSS);
+      } else {
+        startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
+      }
     }
     // Hard force if we're still stuck after ~1.2s.
     if (game.stageTwoClearedFrames > 72) {
       game.stageTwoClearedFrames = 0;
-      startEndingRescueScene();
+      if (SLINGSHOT_FIRST_ORDER) {
+        enterBossStageFromSlingshot();
+      } else {
+        startEndingRescueScene();
+      }
     }
   } else if (game.stage === 2) {
     game.stageTwoClearedFrames = 0;
@@ -5679,6 +5767,14 @@ function step(frameScale) {
         enterStageTwo();
         updateHud();
       }, SCENE_TR_BOSS_TO_STAGE2);
+    }
+    if (game.pendingStageTransitionTimer <= 0 && game.pendingStageTransition === "toEndingAfterBoss") {
+      game.pendingStageTransition = null;
+      game.pendingStageTransitionTimer = 0;
+      startSceneTransition(() => {
+        startEndingRescueScene();
+        updateHud();
+      }, SCENE_TR_TO_ENDING);
     }
   }
 
@@ -7498,13 +7594,14 @@ function drawHud() {
   if (game.stage === 2 && game.stageTwo) {
     const stageTwoPercent = Math.round(getStageTwoProgress() * 100);
     const startingShots = Math.max(1, game.stageTwo.startingShots || game.stageTwo.shotsLeft || 1);
+    const slingLabel = hudSlingStageName();
     ctx.fillStyle = palette.hud;
     roundRect(16, 14, 324, 56, 18);
     ctx.fill();
     ctx.fillStyle = "#fff7e8";
     ctx.font = "bold 18px Avenir Next, sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(`第二關 彈藥 ${game.stageTwo.shotsLeft}`, 30, 38);
+    ctx.fillText(`${slingLabel} 彈藥 ${game.stageTwo.shotsLeft}`, 30, 38);
     ctx.fillText(`剩餘目標 ${countStageTwoActiveTargets(game.stageTwo)}`, 30, 60);
 
     ctx.textAlign = "right";
@@ -7517,7 +7614,7 @@ function drawHud() {
     ctx.fillStyle = "#fff7e8";
     ctx.font = "bold 16px Avenir Next, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("第二關  彈弓清場", WIDTH / 2, 38);
+    ctx.fillText(`${slingLabel}  彈弓清場`, WIDTH / 2, 38);
 
     ctx.fillStyle = "rgba(12, 18, 35, 0.46)";
     roundRect(WIDTH / 2 - 108, 58, 216, 24, 12);
@@ -7571,7 +7668,12 @@ function drawHud() {
   ctx.fillStyle = "#fff7e8";
   ctx.font = "bold 16px Avenir Next, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(level.goal ? "第一關  平台衝刺" : "第一關  Boss 戰", WIDTH / 2, 38);
+  const bossLabel = hudBossStageName();
+  ctx.fillText(
+    level.goal ? `${bossLabel}  平台衝刺` : `${bossLabel}  Boss 戰`,
+    WIDTH / 2,
+    38
+  );
 
   if (game.comboCount >= 2) {
     const comboRatio = clamp(game.comboTimer / COIN_COMBO.windowFrames, 0, 1);
@@ -7686,9 +7788,15 @@ function drawOverlay() {
 
     ctx.fillStyle = "#526182";
     ctx.font = "17px Avenir Next, sans-serif";
-    ctx.fillText("A/D 移動，Space 跳（二段跳），Shift 衝刺。連吃 200P 會 COMBO 加時。", panelX + panelW / 2, panelY + 146);
-    ctx.fillText("先推箱、踩開關、破數量門，再衝進 Boss 區。", panelX + panelW / 2, panelY + 172);
-    ctx.fillText("Boss 對話和插播影片期間，倒數會自動暫停。", panelX + panelW / 2, panelY + 198);
+    if (SLINGSHOT_FIRST_ORDER) {
+      ctx.fillText("先玩彈弓清堡壘，再進 Boss 戰一路衝刺。", panelX + panelW / 2, panelY + 146);
+      ctx.fillText("彈弓：拖曳 200P 發射；Boss：A/D 移動、Space 跳、Shift 衝刺。", panelX + panelW / 2, panelY + 172);
+      ctx.fillText("對話與插播影片期間，Boss 關倒數會自動暫停。", panelX + panelW / 2, panelY + 198);
+    } else {
+      ctx.fillText("A/D 移動，Space 跳（二段跳），Shift 衝刺。連吃 200P 會 COMBO 加時。", panelX + panelW / 2, panelY + 146);
+      ctx.fillText("先推箱、踩開關、破數量門，再衝進 Boss 區。", panelX + panelW / 2, panelY + 172);
+      ctx.fillText("Boss 對話和插播影片期間，倒數會自動暫停。", panelX + panelW / 2, panelY + 198);
+    }
     ctx.font = "bold 16px Avenir Next, sans-serif";
     ctx.fillText("P 暫停  ·  M 聲音  ·  R 重開", panelX + panelW / 2, panelY + 224);
 
@@ -7742,11 +7850,11 @@ function drawOverlay() {
     ctx.textAlign = "center";
     ctx.fillStyle = palette.stripeBlue;
     ctx.font = "bold 14px Avenir Next, sans-serif";
-    ctx.fillText("第二關說明", panelX + panelW / 2, panelY + 58);
+    ctx.fillText(`${hudSlingStageName()}說明`, panelX + panelW / 2, panelY + 58);
 
     ctx.fillStyle = "#16203d";
     ctx.font = "bold 30px Avenir Next, sans-serif";
-    ctx.fillText("第二關：彈弓打競品", panelX + panelW / 2, panelY + 102);
+    ctx.fillText(`${hudSlingStageName()}：彈弓打競品`, panelX + panelW / 2, panelY + 102);
 
     ctx.fillStyle = "#526182";
     ctx.font = "18px Avenir Next, sans-serif";
@@ -8204,11 +8312,13 @@ function drawResultPanel() {
 
   ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
   ctx.font = "14px Avenir Next, sans-serif";
-  const subtitle = isWin
-    ? game.stage === 2
-      ? "Boss 擊破 · 彈弓清場 · 救援達成"
+    const subtitle = isWin
+      ? game.stage === 2
+      ? SLINGSHOT_FIRST_ORDER
+        ? "彈弓清場 · Boss 擊破 · 救援達成"
+        : "Boss 擊破 · 彈弓清場 · 救援達成"
       : level.goal
-        ? "第一關過關"
+        ? `${hudBossStageName()}過關`
         : "Boss Battle Clear"
     : "Game Over";
   ctx.fillText(subtitle, WIDTH / 2, panelY + 92);
@@ -8226,24 +8336,32 @@ function drawResultPanel() {
     const leftX = panelX + 30;
     const rightX = leftX + cardW + gap;
 
-    drawResultCard(leftX, cardsTop, cardW, cardH, {
-      label: "第一關 · Boss 戰",
+    const bossStats = {
+      label: SLINGSHOT_FIRST_ORDER ? "第二關 · Boss 戰" : "第一關 · Boss 戰",
       color: "#ffd166",
       stats: [
         { value: `${game.coins}`, unit: "罐 200P" },
         { value: `+${formatStatNumber(game.timeBoostEarned)}s`, unit: "延長時間" },
         { value: `${game.comboBest}`, unit: "最高連踩" },
       ],
-    });
-    drawResultCard(rightX, cardsTop, cardW, cardH, {
-      label: "第二關 · 彈弓場",
+    };
+    const slingStats = {
+      label: SLINGSHOT_FIRST_ORDER ? "第一關 · 彈弓場" : "第二關 · 彈弓場",
       color: "#ff7b20",
       stats: [
         { value: `${game.stageTwo ? game.stageTwo.score : 0}`, unit: "分數" },
         { value: `${game.stageTwo ? game.stageTwo.shotsLeft : 0}`, unit: "剩餘彈藥" },
         { value: `${stageTwoBestImpact}`, unit: "最佳衝擊" },
       ],
-    });
+    };
+
+    if (SLINGSHOT_FIRST_ORDER) {
+      drawResultCard(leftX, cardsTop, cardW, cardH, slingStats);
+      drawResultCard(rightX, cardsTop, cardW, cardH, bossStats);
+    } else {
+      drawResultCard(leftX, cardsTop, cardW, cardH, bossStats);
+      drawResultCard(rightX, cardsTop, cardW, cardH, slingStats);
+    }
 
     ctx.fillStyle = "rgba(255, 246, 228, 0.92)";
     ctx.font = "18px Avenir Next, sans-serif";
@@ -8252,7 +8370,7 @@ function drawResultPanel() {
     const cardW = panelW - 60;
     const leftX = panelX + 30;
     drawResultCard(leftX, cardsTop, cardW, cardH, {
-      label: "第一關 STAGE 1",
+      label: `${hudBossStageName()} · Boss 戰`,
       color: "#ffd166",
       stats: [
         { value: `${game.coins}`, unit: "罐 200P" },
@@ -8269,7 +8387,7 @@ function drawResultPanel() {
     const cardW = panelW - 60;
     const leftX = panelX + 30;
     drawResultCard(leftX, cardsTop, cardW, cardH, {
-      label: game.stage === 2 ? "第二關彈藥告急" : "第一關 KO",
+      label: game.stage === 2 ? `${hudSlingStageName()}彈藥告急` : `${hudBossStageName()} KO`,
       color: "#ef2a3e",
       stats:
         game.stage === 2
@@ -8440,18 +8558,22 @@ function _legacyDrawResultPanel_unused() {
     ctx.font = "21px Avenir Next, sans-serif";
     if (game.state === "won" && game.stage === 2) {
       ctx.fillText(
-        `第一關補了 ${game.coins} 罐，多撐 ${formatStatNumber(game.timeBoostEarned)} 秒。`,
+        `${hudBossStageName()}補了 ${game.coins} 罐，多撐 ${formatStatNumber(game.timeBoostEarned)} 秒。`,
         WIDTH / 2,
         252
       );
-      ctx.fillText(`第二關砸出 ${game.stageTwo ? game.stageTwo.score : 0} 分，競品全部清場。`, WIDTH / 2, 286);
+      ctx.fillText(
+        `${hudSlingStageName()}砸出 ${game.stageTwo ? game.stageTwo.score : 0} 分，競品全部清場。`,
+        WIDTH / 2,
+        286
+      );
       ctx.fillText("記住它：7 種維他命 + 胺基酸 + 牛磺酸。", WIDTH / 2, 312);
     } else {
       ctx.fillText(
         game.state === "won"
           ? `你補了 ${game.coins} 罐 200P，報告和交件一起搞定。`
           : game.stage === 2
-            ? "第二關彈藥打完了，再按 R 或 Restart 重跑一次。"
+            ? `${hudSlingStageName()}彈藥打完了，再按 R 或 Restart 重跑一次。`
             : "再喝一口，再按 R 或 Restart 重跑一次。",
         WIDTH / 2,
         260
@@ -8691,8 +8813,13 @@ function skipToNextStage() {
       updateHud();
       return;
     }
-    enterStageTwo();
-    game.overlayText = "測試跳關：直接進第二關";
+    if (SLINGSHOT_FIRST_ORDER) {
+      startEndingRescueScene();
+      game.overlayText = "測試跳關：直接結局";
+    } else {
+      enterStageTwo();
+      game.overlayText = "測試跳關：直接進第二關";
+    }
     soundFx.win();
     updateHud();
     return;
@@ -8703,12 +8830,25 @@ function skipToNextStage() {
       game.stageTwo = createStageTwo();
     }
     game.stageTwo.score = Math.max(game.stageTwo.score, 480);
-    startEndingRescueScene();
+    if (SLINGSHOT_FIRST_ORDER) {
+      enterBossStageFromSlingshot();
+      game.overlayText = "測試跳關：直接進 Boss 戰";
+    } else {
+      startEndingRescueScene();
+      game.overlayText = "測試跳關：直接結局";
+    }
+    soundFx.win();
+    updateHud();
   }
 }
 
 window.addEventListener("keydown", (event) => {
   unlockAudio();
+
+  if (game.state === "finalVideo") {
+    event.preventDefault();
+    return;
+  }
 
   if (game.bossCutscene?.active && event.code === HIDDEN_BOSS_SKIP_KEY) {
     event.preventDefault();
@@ -8722,7 +8862,6 @@ window.addEventListener("keydown", (event) => {
     (event.code === "Space" || event.code === "Enter")
   ) {
     event.preventDefault();
-    handleBossInsertVideoPointerDown();
     return;
   }
 
@@ -8893,13 +9032,10 @@ if (cutsceneVideo) {
 
 if (cutsceneVideoOverlay) {
   cutsceneVideoOverlay.addEventListener("pointerdown", (event) => {
-    if (game.finalVictoryVideo?.active) {
-      finishFinalVictoryVideo();
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
-    if (handleBossInsertVideoPointerDown()) {
+    if (
+      game.finalVictoryVideo?.active ||
+      (game.bossCutscene?.active && game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE)
+    ) {
       event.preventDefault();
       event.stopPropagation();
     }
@@ -8912,11 +9048,28 @@ window.addEventListener("resize", () => {
   layoutCutsceneVideo();
   syncMobileControlsVisibility();
 });
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", () => {
+    configureCanvas();
+    layoutCutsceneVideo();
+  });
+}
 try {
   window.matchMedia("(max-width: 820px)").addEventListener("change", syncMobileControlsVisibility);
 } catch (_) {}
 canvas.addEventListener("pointerdown", (event) => {
   unlockAudio();
+
+  if (game.state === "finalVideo") {
+    event.preventDefault();
+    return;
+  }
+
+  if (game.bossCutscene?.active && game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE) {
+    event.preventDefault();
+    return;
+  }
+
   const point = getCanvasPoint(event);
 
   if (pointInRect(point, getAudioToggleRect())) {
