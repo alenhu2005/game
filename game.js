@@ -8760,19 +8760,28 @@ function beginStageTwoDrag(point) {
     return false;
   }
 
-  const grabRadius = 48;
+  const isCoarsePointer =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches;
+  const grabRadius = isCoarsePointer ? 78 : 48;
 
-  if (game.state === "stage2Intro" && distance > grabRadius) {
+  // On phones, it's easy to miss the projectile on first touch.
+  // If we're still on the intro prompt, treat the first touch as "start + grab"
+  // so players can immediately drag to aim.
+  if (game.state === "stage2Intro") {
     enterStageTwoPlaying();
+    game.stageTwo.dragging = true;
+    projectile.state = "dragging";
+    if (physics) {
+      physics.cancelSling();
+    }
+    updateStageTwoDrag(point);
     return true;
   }
 
   if (distance > grabRadius) {
     return false;
-  }
-
-  if (game.state === "stage2Intro") {
-    enterStageTwoPlaying();
   }
 
   game.stageTwo.dragging = true;
