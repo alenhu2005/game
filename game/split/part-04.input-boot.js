@@ -172,20 +172,29 @@ if (killBossButton) {
 if (cutsceneVideo) {
   cutsceneVideo.addEventListener("loadedmetadata", () => {
     layoutCutsceneVideo();
+    scheduleCutsceneVideoWatchdog();
   });
   cutsceneVideo.addEventListener("ended", () => {
-    if (game.finalVictoryVideo?.active) {
-      finishFinalVictoryVideo();
-      return;
-    }
-    finishBossInsertVideo();
+    finishActiveCutsceneVideo();
   });
   cutsceneVideo.addEventListener("error", () => {
-    if (game.finalVictoryVideo?.active) {
-      finishFinalVictoryVideo();
-      return;
+    finishActiveCutsceneVideo();
+  });
+  cutsceneVideo.addEventListener("playing", () => {
+    clearCutsceneVideoWatchdogs();
+    scheduleCutsceneVideoWatchdog();
+  });
+  cutsceneVideo.addEventListener("timeupdate", () => {
+    clearCutsceneVideoWatchdogs();
+    scheduleCutsceneVideoWatchdog();
+  });
+  cutsceneVideo.addEventListener("waiting", scheduleCutsceneVideoStallWatchdog);
+  cutsceneVideo.addEventListener("stalled", scheduleCutsceneVideoStallWatchdog);
+  cutsceneVideo.addEventListener("suspend", scheduleCutsceneVideoStallWatchdog);
+  cutsceneVideo.addEventListener("pause", () => {
+    if (isCutsceneVideoActive() && !cutsceneVideo.ended) {
+      scheduleCutsceneVideoStallWatchdog();
     }
-    finishBossInsertVideo();
   });
 }
 
@@ -197,8 +206,20 @@ if (cutsceneVideoOverlay) {
     ) {
       event.preventDefault();
       event.stopPropagation();
+      finishActiveCutsceneVideo();
     }
   });
+  cutsceneVideoOverlay.addEventListener(
+    "touchend",
+    (event) => {
+      if (isCutsceneVideoActive()) {
+        event.preventDefault();
+        event.stopPropagation();
+        finishActiveCutsceneVideo();
+      }
+    },
+    { passive: false }
+  );
 }
 
 configureCanvas();
@@ -241,6 +262,21 @@ function clearStageTwoPointerTracking(event, preserveTouchDrag = false) {
       canvas.releasePointerCapture(pointerId);
     } catch (_) {}
   }
+}
+
+function startStageTwoPointerDrag(point, event) {
+  if (!beginStageTwoDrag(point)) {
+    return false;
+  }
+  stageTwoDragPointerId = event.pointerId;
+  stageTwoDragStartPoint = point;
+  stageTwoDragMoved = false;
+  if (canvas.setPointerCapture) {
+    try {
+      canvas.setPointerCapture(event.pointerId);
+    } catch (_) {}
+  }
+  return true;
 }
 
 canvas.addEventListener("pointerdown", (event) => {
@@ -290,19 +326,15 @@ canvas.addEventListener("pointerdown", (event) => {
 
   if (game.state === "intro") {
     startStageOneRun();
+    if (SLINGSHOT_FIRST_ORDER && startStageTwoPointerDrag(point, event)) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     return;
   }
 
-  if (beginStageTwoDrag(point)) {
-    stageTwoDragPointerId = event.pointerId;
-    stageTwoDragStartPoint = point;
-    stageTwoDragMoved = false;
-    if (canvas.setPointerCapture) {
-      try {
-        canvas.setPointerCapture(event.pointerId);
-      } catch (_) {}
-    }
+  if (startStageTwoPointerDrag(point, event)) {
     event.preventDefault();
   }
 });
@@ -380,6 +412,9 @@ canvas.addEventListener(
     }
 
     const point = getCanvasPointFromClient(touch.clientX, touch.clientY);
+    if (game.state === "intro" && SLINGSHOT_FIRST_ORDER) {
+      startStageOneRun();
+    }
     stageTwoDragStartPoint = point;
     stageTwoDragMoved = false;
 

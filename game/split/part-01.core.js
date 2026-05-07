@@ -2888,6 +2888,7 @@ function startFinalVictoryVideo() {
     layoutCutsceneVideo();
     void playCutsceneVideoAutoplay();
   });
+  scheduleCutsceneVideoWatchdog();
   if (cutsceneVideoHint) {
     cutsceneVideoHint.textContent = CUTSCENE_VIDEO_HINT_PLAYING;
   }

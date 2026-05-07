@@ -2055,22 +2055,93 @@ function layoutCutsceneVideo() {
 }
 
 const CUTSCENE_VIDEO_HINT_PLAYING = "影片播放中…";
+const CUTSCENE_VIDEO_FALLBACK_MS = 12000;
+const CUTSCENE_VIDEO_STALL_MS = 4200;
+let cutsceneVideoWatchdog = null;
+let cutsceneVideoStallWatchdog = null;
+
+function isCutsceneVideoActive() {
+  return (
+    !!game.finalVictoryVideo?.active ||
+    (game.bossCutscene?.active && game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE)
+  );
+}
+
+function clearCutsceneVideoWatchdogs() {
+  if (cutsceneVideoWatchdog) {
+    window.clearTimeout(cutsceneVideoWatchdog);
+    cutsceneVideoWatchdog = null;
+  }
+  if (cutsceneVideoStallWatchdog) {
+    window.clearTimeout(cutsceneVideoStallWatchdog);
+    cutsceneVideoStallWatchdog = null;
+  }
+}
+
+function finishActiveCutsceneVideo() {
+  if (game.finalVictoryVideo?.active) {
+    finishFinalVictoryVideo();
+    return;
+  }
+  if (game.bossCutscene?.active && game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE) {
+    finishBossInsertVideo();
+  }
+}
+
+function scheduleCutsceneVideoWatchdog() {
+  if (!cutsceneVideo || !isCutsceneVideoActive()) {
+    return;
+  }
+  if (cutsceneVideoWatchdog) {
+    window.clearTimeout(cutsceneVideoWatchdog);
+  }
+  const durationMs =
+    Number.isFinite(cutsceneVideo.duration) && cutsceneVideo.duration > 0
+      ? Math.min(Math.max(cutsceneVideo.duration * 1000 + 3500, 7000), 45000)
+      : CUTSCENE_VIDEO_FALLBACK_MS;
+  cutsceneVideoWatchdog = window.setTimeout(() => {
+    if (isCutsceneVideoActive() && cutsceneVideo && !cutsceneVideo.ended) {
+      finishActiveCutsceneVideo();
+    }
+  }, durationMs);
+}
+
+function scheduleCutsceneVideoStallWatchdog() {
+  if (!isCutsceneVideoActive()) {
+    return;
+  }
+  if (cutsceneVideoStallWatchdog) {
+    window.clearTimeout(cutsceneVideoStallWatchdog);
+  }
+  cutsceneVideoStallWatchdog = window.setTimeout(() => {
+    if (!isCutsceneVideoActive() || !cutsceneVideo) {
+      return;
+    }
+    if (cutsceneVideo.paused || cutsceneVideo.readyState < 3) {
+      finishActiveCutsceneVideo();
+    }
+  }, CUTSCENE_VIDEO_STALL_MS);
+}
 
 async function playCutsceneVideoAutoplay() {
   if (!cutsceneVideo) {
-    return;
+    return false;
   }
   const preferSound = audio.enabled;
+  let didPlay = false;
 
   cutsceneVideo.muted = !preferSound;
   try {
     await cutsceneVideo.play();
+    didPlay = true;
   } catch (_) {
     cutsceneVideo.muted = true;
     try {
       await cutsceneVideo.play();
+      didPlay = true;
     } catch (_) {
-      return;
+      scheduleCutsceneVideoStallWatchdog();
+      return false;
     }
   }
 
@@ -2079,9 +2150,14 @@ async function playCutsceneVideoAutoplay() {
       cutsceneVideo.muted = false;
     } catch (_) {}
   }
+  if (didPlay) {
+    scheduleCutsceneVideoWatchdog();
+  }
+  return didPlay;
 }
 
 function resetCutsceneVideoUi() {
+  clearCutsceneVideoWatchdogs();
   setCutsceneVideoVisible(false);
   if (cutsceneVideo) {
     cutsceneVideo.pause();
@@ -2127,6 +2203,7 @@ function startBossInsertVideo() {
     layoutCutsceneVideo();
     void playCutsceneVideoAutoplay();
   });
+  scheduleCutsceneVideoWatchdog();
   if (cutsceneVideoHint) {
     cutsceneVideoHint.textContent = CUTSCENE_VIDEO_HINT_PLAYING;
   }
