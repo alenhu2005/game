@@ -18,11 +18,11 @@
       })();
     </script>
     <title>康貝特 200P 期末衝刺場</title>
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=20260507-landscape-shell" />
   </head>
   <body>
     <main class="page">
-      <section id="gameShell" class="game-shell">
+      <section class="game-shell">
         <canvas id="game" width="960" height="540" aria-label="Platform game ad"></canvas>
         <div
           id="touchControls"
@@ -46,15 +46,6 @@
             </button>
           </div>
         </div>
-        <button
-          id="fullscreenButton"
-          class="hud-button hud-button--fullscreen"
-          type="button"
-          aria-label="進入全螢幕"
-          aria-pressed="false"
-        >
-          全螢幕
-        </button>
         <button id="skipButton" class="hud-button" type="button" aria-label="跳關">
           跳關
         </button>
@@ -84,23 +75,7 @@
       </div>
     </main>
 
-    <div
-      id="portraitBlocker"
-      class="portrait-blocker"
-      role="alertdialog"
-      aria-modal="true"
-      aria-live="polite"
-      aria-hidden="true"
-      aria-label="請將裝置橫向"
-    >
-      <div class="portrait-blocker__card">
-        <div class="portrait-blocker__phone" aria-hidden="true"></div>
-        <p class="portrait-blocker__title">請橫向握持手機</p>
-        <p class="portrait-blocker__sub">本遊戲為橫向畫面，請旋轉裝置後繼續。</p>
-      </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
-    <script src="game.js?v=20260507-fs-btn-visible"></script>
+    <script src="game.js?v=20260507-landscape-shell"></script>
   </body>
 </html>

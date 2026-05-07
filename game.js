@@ -3,7 +3,7 @@ const ctx = canvas.getContext("2d");
 
 const WIDTH = 960;
 const HEIGHT = 540;
-const BUILD_ID = "20260507-fs-btn-visible";
+const BUILD_ID = "20260507-landscape-shell";
 
 function configureCanvas() {
   const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
@@ -40,10 +40,6 @@ const cutsceneVideoOverlay = document.getElementById("cutsceneVideoOverlay");
 const cutsceneVideoStage = document.querySelector(".video-overlay__stage");
 const cutsceneVideo = document.getElementById("cutsceneVideo");
 const cutsceneVideoHint = document.getElementById("cutsceneVideoHint");
-const portraitBlockerEl = document.getElementById("portraitBlocker");
-const gameShellEl = document.getElementById("gameShell");
-const fullscreenButton = document.getElementById("fullscreenButton");
-
 const FLOOR_Y = 408;
 const GRAVITY = 0.56;
 const MAX_FALL_SPEED = 16;
@@ -647,63 +643,7 @@ function startBackgroundMusic() {
   audio.musicNextTime = context.currentTime + 0.06;
 }
 
-function tryLockLandscape() {
-  try {
-    const o = screen.orientation;
-    if (o && typeof o.lock === "function") {
-      o.lock("landscape").catch(() => {});
-    }
-  } catch (_) {}
-}
-
-function isViewportPortraitLayout() {
-  const vv = window.visualViewport;
-  const w = vv ? vv.width : window.innerWidth;
-  const h = vv ? vv.height : window.innerHeight;
-  if (h > w + 12) {
-    return true;
-  }
-  try {
-    const o = screen.orientation;
-    if (o && typeof o.type === "string") {
-      return o.type.startsWith("portrait");
-    }
-  } catch (_) {}
-  return false;
-}
-
-function shouldForceLandscapeOnThisDevice() {
-  try {
-    if (window.matchMedia("(pointer: coarse)").matches) return true;
-  } catch (_) {}
-  try {
-    if (
-      window.matchMedia("(hover: none)").matches &&
-      window.matchMedia("(max-width: 1024px)").matches
-    ) {
-      return true;
-    }
-  } catch (_) {}
-  return window.innerWidth <= 1024;
-}
-
-function syncPortraitBlockerA11y() {
-  if (!portraitBlockerEl) return;
-  const blocked = isViewportPortraitLayout() && shouldForceLandscapeOnThisDevice();
-  portraitBlockerEl.classList.toggle("portrait-blocker--visible", blocked);
-  portraitBlockerEl.setAttribute("aria-hidden", blocked ? "false" : "true");
-  document.documentElement.classList.toggle("portrait-lock-active", blocked);
-  if (blocked) {
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-  } else {
-    document.body.style.overflow = "";
-    document.documentElement.style.overflow = "";
-  }
-}
-
 function unlockAudio() {
-  tryLockLandscape();
   const context = getAudioContext();
   if (!context) {
     return;
@@ -8625,7 +8565,6 @@ function loop(timestamp) {
   updateBackgroundMusic();
   render();
   syncMobileControlsVisibility();
-  syncPortraitBlockerA11y();
 
   input.jumpPressed = false;
   input.dashPressed = false;
@@ -8967,115 +8906,15 @@ if (cutsceneVideoOverlay) {
   });
 }
 
-function getFullscreenElement() {
-  return (
-    document.fullscreenElement ||
-    document.webkitFullscreenElement ||
-    document.msFullscreenElement ||
-    null
-  );
-}
-
-function fullscreenEnterSupported() {
-  const shell = gameShellEl;
-  const root = document.documentElement;
-  return !!(
-    (shell &&
-      (shell.requestFullscreen ||
-        shell.webkitRequestFullscreen ||
-        shell.msRequestFullscreen)) ||
-    root.requestFullscreen ||
-    root.webkitRequestFullscreen ||
-    root.msRequestFullscreen
-  );
-}
-
-function syncFullscreenButtonUI() {
-  if (!fullscreenButton || !gameShellEl) return;
-  fullscreenButton.removeAttribute("hidden");
-  const active = !!getFullscreenElement();
-  fullscreenButton.textContent = active ? "退出全螢幕" : "全螢幕";
-  fullscreenButton.setAttribute("aria-pressed", active ? "true" : "false");
-  fullscreenButton.setAttribute("aria-label", active ? "退出全螢幕" : "進入全螢幕");
-}
-
-async function toggleGameFullscreen() {
-  if (!gameShellEl) return;
-  unlockAudio();
-  if (!fullscreenEnterSupported()) {
-    game.overlayTimer = 120;
-    game.overlayText = "此瀏覽器不支援網頁全螢幕；請用電腦開啟，或使用選單「加到主畫面」後以橫向遊玩。";
-    return;
-  }
-  try {
-    if (getFullscreenElement()) {
-      if (document.exitFullscreen) await document.exitFullscreen();
-      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-      else if (document.msExitFullscreen) document.msExitFullscreen();
-    } else if (gameShellEl.requestFullscreen) {
-      await gameShellEl.requestFullscreen();
-    } else if (gameShellEl.webkitRequestFullscreen) {
-      gameShellEl.webkitRequestFullscreen();
-    } else if (gameShellEl.msRequestFullscreen) {
-      gameShellEl.msRequestFullscreen();
-    } else if (document.documentElement.requestFullscreen) {
-      await document.documentElement.requestFullscreen();
-    } else if (document.documentElement.webkitRequestFullscreen) {
-      document.documentElement.webkitRequestFullscreen();
-    } else if (document.documentElement.msRequestFullscreen) {
-      document.documentElement.msRequestFullscreen();
-    }
-  } catch (_) {
-    game.overlayTimer = 100;
-    game.overlayText = "無法進入全螢幕（可能被 iframe 或瀏覽器阻擋）。";
-  }
-  requestAnimationFrame(() => {
-    configureCanvas();
-    layoutCutsceneVideo();
-    syncFullscreenButtonUI();
-    tryLockLandscape();
-  });
-}
-
-function onFullscreenChanged() {
-  configureCanvas();
-  layoutCutsceneVideo();
-  syncFullscreenButtonUI();
-  syncMobileControlsVisibility();
-  syncPortraitBlockerA11y();
-  tryLockLandscape();
-}
-
-document.addEventListener("fullscreenchange", onFullscreenChanged);
-document.addEventListener("webkitfullscreenchange", onFullscreenChanged);
-document.addEventListener("MSFullscreenChange", onFullscreenChanged);
-
-if (fullscreenButton) {
-  fullscreenButton.addEventListener("click", () => {
-    toggleGameFullscreen();
-  });
-}
-
 configureCanvas();
-syncFullscreenButtonUI();
-syncPortraitBlockerA11y();
-window.addEventListener("orientationchange", () => {
-  syncPortraitBlockerA11y();
-  tryLockLandscape();
-});
 window.addEventListener("resize", () => {
   configureCanvas();
   layoutCutsceneVideo();
   syncMobileControlsVisibility();
-  syncPortraitBlockerA11y();
 });
 try {
   window.matchMedia("(max-width: 820px)").addEventListener("change", syncMobileControlsVisibility);
 } catch (_) {}
-if (window.visualViewport) {
-  window.visualViewport.addEventListener("resize", syncPortraitBlockerA11y);
-  window.visualViewport.addEventListener("scroll", syncPortraitBlockerA11y);
-}
 canvas.addEventListener("pointerdown", (event) => {
   unlockAudio();
   const point = getCanvasPoint(event);
