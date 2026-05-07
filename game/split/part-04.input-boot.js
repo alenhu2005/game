@@ -474,9 +474,9 @@ function endStageTwoTouchDrag(event) {
   if (!touch && event.type !== "touchcancel") return;
   stageTwoTouchActive = false;
   stageTwoTouchId = null;
+  releaseStageTwoDrag();
   stageTwoDragStartPoint = null;
   stageTwoDragMoved = false;
-  releaseStageTwoDrag();
   event.preventDefault();
 }
 canvas.addEventListener("touchend", endStageTwoTouchDrag, { passive: false });
