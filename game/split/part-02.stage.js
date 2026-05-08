@@ -302,9 +302,6 @@ function updateDeathScene(frameScale) {
   game.cameraX += (targetCamera - game.cameraX) * 0.14 * frameScale;
   game.cameraX = clamp(game.cameraX, 0, level.worldWidth - WIDTH);
 
-  if (game.flashTimer > 0) {
-    game.flashTimer -= frameScale;
-  }
   updateStageOneFx(frameScale);
 
   if (
@@ -1767,13 +1764,14 @@ function updateBossAi(enemy, player, frameScale) {
           ? BOSS_BALANCE.shakenSpeedEnraged
           : BOSS_BALANCE.shakenSpeedBase) * STAGE_ONE_DIFFICULTY.enemySpeedMultiplier;
     const leash = getEnemyLeash(enemy);
-    let escapeDir = enemy.shakenDir ?? -dir;
+    // Red Bull fights forward: prefer pushing toward player instead of retreating.
+    let escapeDir = style.name === "redbull" ? dir : enemy.shakenDir ?? -dir;
     const wallNearLeft = enemy.x <= leash.minX + 60;
     const wallNearRight = enemy.x + enemy.w >= leash.maxX - 60;
     if (escapeDir < 0 && wallNearLeft) escapeDir = 1;
     else if (escapeDir > 0 && wallNearRight) escapeDir = -1;
     enemy.shakenDir = escapeDir;
-    enemy.vx = escapeDir * shakeSpeed;
+    enemy.vx = escapeDir * shakeSpeed * (style.name === "redbull" ? 1.1 : 1);
     const shootInterval = engaged
       ? style.shakenShootIntervalEngaged
       : enemy.berserk
@@ -1953,6 +1951,7 @@ function stompBossFromPlayer(enemy, player) {
   const sideKick = player.x + player.w / 2 < enemy.x + enemy.w / 2 ? -1 : 1;
   player.x += sideKick * 28;
   player.vx = sideKick * 5.4;
+  player.invincible = Math.max(player.invincible ?? 0, BOSS_STOMP_PLAYER_INVINCIBLE_FRAMES);
   triggerStageOneShake(6);
   spawnStageOnePopup(
     firstFormBroken
@@ -2352,6 +2351,9 @@ function clearCutsceneVideoWatchdogs() {
 
 function finishActiveCutsceneVideo() {
   if (game.finalVictoryVideo?.active) {
+    if (!canSkipFinalVictoryVideo()) {
+      return;
+    }
     finishFinalVictoryVideo();
     return;
   }
@@ -2585,11 +2587,11 @@ function finishBossIntroCutscene() {
   soundFx.coin();
 }
 
-function finishBossMiniCutscene() {
+function finishBossMiniCutscene(invincibleFrames = 24) {
   resetCutsceneVideoUi();
   game.bossCutscene = null;
   STAGE_ONE_FX.cameraZoomTarget = 1;
-  game.player.invincible = Math.max(game.player.invincible ?? 0, 24);
+  game.player.invincible = Math.max(game.player.invincible ?? 0, invincibleFrames);
 }
 
 function completeBossVictoryCutscene() {
@@ -2598,6 +2600,99 @@ function completeBossVictoryCutscene() {
   game.pendingStageTransitionTimer = Math.max(game.pendingStageTransitionTimer ?? 0, 36);
   game.overlayTimer = 108;
   game.overlayText = SLINGSHOT_FIRST_ORDER ? "兩大霸主倒下，準備拯救200p" : "通路破口開啟，準備進第二階段";
+}
+
+const CUTSCENE_TYPE_CHARS_PER_FRAME = 1.5;
+
+function getCutsceneLineRevealState(line, holdTotal, lineHold) {
+  const safeLine = line ?? "";
+  const lineElapsed = clamp(holdTotal - (lineHold ?? 0), 0, holdTotal);
+  const typedCount = Math.max(0, Math.floor(lineElapsed * CUTSCENE_TYPE_CHARS_PER_FRAME));
+  return {
+    typedCount,
+    fullyRevealed: typedCount >= safeLine.length,
+  };
+}
+
+function forceRevealCutsceneLine(cs, line, holdTotal) {
+  const safeLine = line ?? "";
+  const revealLineHold = Math.max(0, holdTotal - Math.ceil(safeLine.length / CUTSCENE_TYPE_CHARS_PER_FRAME));
+  cs.lineHold = Math.min(cs.lineHold ?? holdTotal, revealLineHold);
+}
+
+function advanceBossDialogueLine(cs, lines, holdTotal, speakerForBounce = "boss") {
+  const line = lines[cs.talkIdx]?.line ?? "";
+  const reveal = getCutsceneLineRevealState(line, holdTotal, cs.lineHold);
+  if (!reveal.fullyRevealed) {
+    forceRevealCutsceneLine(cs, line, holdTotal);
+    return true;
+  }
+
+  cs.talkIdx += 1;
+  if (cs.talkIdx >= lines.length) {
+    return false;
+  }
+  cs.lineHold = holdTotal;
+  armBossIntroBounce(speakerForBounce === "auto" ? getBossIntroTurn(cs)?.speaker ?? "boss" : speakerForBounce);
+  return true;
+}
+
+function advanceBossCutscene() {
+  const cs = game.bossCutscene;
+  if (!cs?.active) {
+    return false;
+  }
+  stopSubtitleNarration();
+
+  if (cs.phase === "bossZoom") {
+    cs.phase = "exchangeTalk";
+    cs.timer = 0;
+    cs.talkIdx = 0;
+    cs.lineHold = BOSS_INTRO_LINE_HOLD_FRAMES;
+    armBossIntroBounce(getBossIntroTurn(cs)?.speaker ?? "boss");
+    return true;
+  }
+
+  if (cs.phase === "exchangeTalk") {
+    const advanced = advanceBossDialogueLine(cs, BOSS_INTRO_EXCHANGE, BOSS_INTRO_LINE_HOLD_FRAMES, "auto");
+    if (advanced) {
+      return true;
+    }
+    cs.phase = BOSS_INTRO_VIDEO_PHASE;
+    cs.timer = 0;
+    cs.lineHold = 0;
+    cs.videoStarted = false;
+    cs.videoPlaying = false;
+    startBossInsertVideo();
+    return true;
+  }
+
+  if (cs.phase === "victory") {
+    const lines = BOSS_VICTORY_EXCHANGE.map((line) => ({ line: line.line }));
+    const advanced = advanceBossDialogueLine(cs, lines, 170, "player");
+    if (advanced) {
+      return true;
+    }
+    completeBossVictoryCutscene();
+    return true;
+  }
+
+  if (cs.phase === "phaseShift") {
+    finishBossMiniCutscene(BOSS_PHASE_SHIFT_PLAYER_INVINCIBLE_FRAMES);
+    return true;
+  }
+
+  if (cs.phase === BOSS_INTRO_VIDEO_PHASE) {
+    finishBossInsertVideo();
+    return true;
+  }
+
+  if (cs.phase === "outro") {
+    finishBossIntroCutscene();
+    return true;
+  }
+
+  return false;
 }
 
 function skipBossCutscene() {
@@ -2610,11 +2705,36 @@ function skipBossCutscene() {
     return true;
   }
   if (cs.phase === "phaseShift") {
-    finishBossMiniCutscene();
+    finishBossMiniCutscene(BOSS_PHASE_SHIFT_PLAYER_INVINCIBLE_FRAMES);
     return true;
   }
   finishBossIntroCutscene();
   return true;
+}
+
+function advanceCurrentDialogueScene() {
+  stopSubtitleNarration();
+  if (game.state === "prologue") {
+    return advancePrologueIntroStep();
+  }
+  if (game.state === "prologueStageCard") {
+    finishPrologueStageCard();
+    return true;
+  }
+  if (game.state === "missionCompleteCard") {
+    finishMissionCompleteCard();
+    return true;
+  }
+  if (game.bossCutscene?.active) {
+    return advanceBossCutscene();
+  }
+  if (game.state === "stage2Outro") {
+    return advanceStageTwoOutroStep();
+  }
+  if (game.state === "ending") {
+    return advanceEndingRescueStep();
+  }
+  return false;
 }
 
 function skipCurrentDialogueScene() {
@@ -2627,6 +2747,10 @@ function skipCurrentDialogueScene() {
     finishPrologueStageCard();
     return true;
   }
+  if (game.state === "missionCompleteCard") {
+    finishMissionCompleteCard();
+    return true;
+  }
   if (game.bossCutscene?.active) {
     return skipBossCutscene();
   }
@@ -2635,6 +2759,9 @@ function skipCurrentDialogueScene() {
     return true;
   }
   if (game.state === "ending") {
+    if (!canSkipEndingRescueScene()) {
+      return false;
+    }
     finishEndingRescueScene();
     return true;
   }
@@ -2746,7 +2873,7 @@ function updateBossIntroCutscene(frameScale) {
       updateBossAi(boss, game.player, frameScale);
     }
     if (cs.timer >= BOSS_PHASE_SHIFT_CUTSCENE_FRAMES) {
-      finishBossMiniCutscene();
+      finishBossMiniCutscene(BOSS_PHASE_SHIFT_PLAYER_INVINCIBLE_FRAMES);
     }
     return;
   }
@@ -2806,15 +2933,18 @@ function drawBossIntroCutscene() {
   const panelW = WIDTH - 104;
   const maxW = panelW - 44;
 
+  if (cs.phase === "bossZoom") {
+    const virtualPanelY = HEIGHT - letterH - 132 - panelBottomMargin;
+    drawBossIntroSpeakerPortrait(virtualPanelY, cs);
+    ctx.textAlign = "left";
+    return;
+  }
+
   let speaker = "…";
   let line = "";
   let accent = "#526182";
 
-  if (cs.phase === "bossZoom") {
-    speaker = "極限狂牛 (Boss)";
-    line = "（鏡頭拉近——能量巨塔頂端金庫前）";
-    accent = "#ef2a3e";
-  } else if (cs.phase === "phaseShift") {
+  if (cs.phase === "phaseShift") {
     speaker = "深淵魔爪 (Boss)";
     line = "「紅牛帝國竟然倒下了？那就讓夜晚與電競能量網把你吞掉。」";
     accent = "#55f06a";
@@ -2841,8 +2971,7 @@ function drawBossIntroCutscene() {
   // Typewriter + fade between lines for a smoother cutscene feel.
   const holdTotal = cs.phase === "victory" ? 170 : BOSS_INTRO_LINE_HOLD_FRAMES;
   const lineElapsed = clamp(holdTotal - (cs.lineHold ?? 0), 0, holdTotal);
-  const typeCharsPerFrame = 1.5; // ~90 chars/sec at 60fps
-  const typedCount = Math.max(0, Math.floor(lineElapsed * typeCharsPerFrame));
+  const typedCount = Math.max(0, Math.floor(lineElapsed * CUTSCENE_TYPE_CHARS_PER_FRAME));
   const typedLine = line ? line.slice(0, typedCount) : "";
   const fadeOut = clamp((30 - (cs.lineHold ?? 999)) / 30, 0, 1);
   const fadeIn = clamp(lineElapsed / 18, 0, 1);
@@ -2907,7 +3036,7 @@ function drawBossIntroCutscene() {
   ctx.fillStyle = "rgba(255, 247, 232, 0.68)";
   ctx.font = "bold 12px Avenir Next, sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText("Space / Enter / 點一下可略過", WIDTH - 18, HEIGHT - 18);
+  ctx.fillText("Space / Enter / 點一下下一句", WIDTH - 18, HEIGHT - 18);
   ctx.restore();
 
   ctx.textAlign = "left";
@@ -3012,13 +3141,6 @@ function updateBossArrivalScene(frameScale) {
   game.cameraX += (targetCamera - game.cameraX) * 0.12 * frameScale;
   game.cameraX = clamp(game.cameraX, 0, level.worldWidth - WIDTH);
 
-  if (game.overlayTimer > 0) {
-    game.overlayTimer -= frameScale;
-  }
-  if (game.flashTimer > 0) {
-    game.flashTimer -= frameScale;
-  }
-
   if ((arrival.phase ?? "walk") === "pant" && arrival.phaseTimer >= (arrival.pantDuration ?? BOSS_ARRIVAL_PANT_FRAMES)) {
     game.bossArrivalScene = null;
     game.state = "running";
@@ -3029,7 +3151,13 @@ function updateBossArrivalScene(frameScale) {
 }
 
 function updateGoal() {
-  if (game.stage !== 1 || game.state === "won" || !level.goal) {
+  if (
+    game.stage !== 1 ||
+    game.state === "won" ||
+    game.state === "ending" ||
+    game.state === "missionCompleteCard" ||
+    !level.goal
+  ) {
     return;
   }
   const goalBox = { x: level.goal.x - 14, y: level.goal.y, w: 32, h: level.goal.h };
@@ -3043,7 +3171,9 @@ function updateGoal() {
     }
     game.stageOneRating = computeStageOneRating();
     if (SLINGSHOT_FIRST_ORDER) {
-      startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
+      if (!level.bossEngaged && !game.bossCutscene?.active && isStageOneGoalLocked()) {
+        // Goal reached but boss alive? (Should be gated, but just in case)
+      }
       game.overlayText = `能量之巔通關，收回 ${game.coins} 罐`;
     } else {
       enterStageTwo();
@@ -3055,6 +3185,13 @@ function updateGoal() {
 
 function step(frameScale) {
   updateSceneTransition(frameScale);
+
+  if (game.flashTimer > 0) {
+    game.flashTimer -= frameScale;
+  }
+  if (game.overlayTimer > 0 && game.state !== "gameover" && game.state !== "won") {
+    game.overlayTimer -= frameScale;
+  }
 
   if (game.state === "prologue") {
     updatePrologueIntro(frameScale);
@@ -3068,6 +3205,12 @@ function step(frameScale) {
     return;
   }
 
+  if (game.state === "missionCompleteCard") {
+    updateMissionCompleteCard(frameScale);
+    updateHud();
+    return;
+  }
+
   // Stage 2 fail-safe: if targets are cleared, always finish (even if we entered stage 2 via debug skip).
   if (
     game.stage === 2 &&
@@ -3075,6 +3218,7 @@ function step(frameScale) {
     (game.state === "stage2Intro" || game.state === "stage2Playing" || game.state === "stage2Outro") &&
     !game.endingScene &&
     game.state !== "ending" &&
+    game.state !== "missionCompleteCard" &&
     game.state !== "won" &&
     game.state !== "gameover" &&
     game.state !== "finalVideo" &&
@@ -3088,11 +3232,11 @@ function step(frameScale) {
           startStageTwoToBossCutscene(game.stageTwo);
         }
       } else {
-        startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
+        startMissionCompleteCard();
       }
     }
     // Hard force only after the full bridge cinematic should have completed.
-    if (game.stageTwoClearedFrames > STAGE_TWO_OUTRO_TOTAL_FRAMES + 120) {
+    if (game.stageTwoClearedFrames > STAGE_TWO_OUTRO_TOTAL_FRAMES + 420) {
       game.stageTwoClearedFrames = 0;
       if (SLINGSHOT_FIRST_ORDER) {
         if (game.state === "stage2Outro") {
@@ -3121,10 +3265,8 @@ function step(frameScale) {
     if (game.pendingStageTransitionTimer <= 0 && game.pendingStageTransition === "toEndingAfterBoss") {
       game.pendingStageTransition = null;
       game.pendingStageTransitionTimer = 0;
-      startSceneTransition(() => {
-        startEndingRescueScene();
-        updateHud();
-      }, SCENE_TR_TO_ENDING);
+      startMissionCompleteCard();
+      updateHud();
     }
   }
 
@@ -3189,9 +3331,6 @@ function step(frameScale) {
 
   if (game.state === "ad") {
     game.adTimer += frameScale;
-    if (game.flashTimer > 0) {
-      game.flashTimer -= frameScale;
-    }
 
     if (
       game.adTimer >= game.adDuration ||
@@ -3278,13 +3417,6 @@ function step(frameScale) {
   const targetCamera = clamp(game.player.x - WIDTH * 0.36, 0, level.worldWidth - WIDTH);
   game.cameraX += (targetCamera - game.cameraX) * 0.12 * frameScale;
   game.cameraX = clamp(game.cameraX, 0, level.worldWidth - WIDTH);
-
-  if (game.overlayTimer > 0 && game.state === "running") {
-    game.overlayTimer -= frameScale;
-  }
-  if (game.flashTimer > 0) {
-    game.flashTimer -= frameScale;
-  }
 
   updateHud();
 }

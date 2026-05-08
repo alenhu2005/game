@@ -107,14 +107,20 @@ const BOSS_INTRO_OUTRO_ZOOM_BLEND_FRAMES = 58;
 const BOSS_INTRO_BOUNCE_DURATION = 17;
 const BOSS_INTRO_VIDEO_PHASE = "playerVideo";
 const BOSS_PHASE_SHIFT_CUTSCENE_FRAMES = 210;
+const BOSS_STOMP_PLAYER_INVINCIBLE_FRAMES = 14;
+const BOSS_PHASE_SHIFT_PLAYER_INVINCIBLE_FRAMES = 54;
 const BOSS_VICTORY_CUTSCENE_FRAMES = 420;
 // Opening prologue is now longer to include essential player instructions.
 const PROLOGUE_TOTAL_FRAMES = 1050;
 const PROLOGUE_STAGE_CARD_FRAMES = 224;
+const PROLOGUE_CAPTION_PROGRESS_STOPS = [0.18, 0.38, 0.58, 0.74, 0.88];
 const ENDING_RESCUE_TOTAL_FRAMES = 600;
 const ENDING_RESCUE_WALK_FRAMES = 160;
 const ENDING_RESCUE_REUNION_START = 230;
 const ENDING_RESCUE_REUNION_FRAMES = 130;
+const ENDING_RESCUE_FINALE_START = ENDING_RESCUE_REUNION_START + ENDING_RESCUE_REUNION_FRAMES + 24;
+const ENDING_RESCUE_SKIP_LOCK_MS = 1200;
+const FINAL_VICTORY_VIDEO_SKIP_LOCK_MS = 900;
 const SPRING_TRIGGER_PAD = 8;
 const SPRING_TRIGGER_SIDE_INSET = 6;
 const SPIKE_KILL_HEIGHT = 36;
@@ -2122,6 +2128,7 @@ const game = {
   finalVictoryVideo: null,
   prologueTimer: 0,
   prologueStageCardTimer: 0,
+  missionCompleteCardTimer: 0,
   prologueCueState: null,
   stageTwoClearedAt: null,
   stageTwoClearedFrames: 0,
@@ -2169,6 +2176,179 @@ const STAGE_TWO_OUTRO_TOTAL_FRAMES = 1400;
 const STAGE_TWO_OUTRO_IMPACT_SHOT_END = 236;
 const STAGE_TWO_OUTRO_RUN_SHOT_START = 336;
 const STAGE_TWO_OUTRO_RUN_SHOT_END = 566;
+const STAGE_TWO_OUTRO_CLIMB_SHOT_START = STAGE_TWO_OUTRO_RUN_SHOT_END + 334;
+const STAGE_TWO_OUTRO_FINAL_CARD_START = STAGE_TWO_OUTRO_TOTAL_FRAMES - 180;
+const TOWER_SCENE_CLIMB_START_PROGRESS = 0.42;
+const TOWER_SCENE_CLIMB_DURATION_PROGRESS = 0.38;
+const TOWER_SCENE_CLIMB_STEP_COUNT = 8;
+const TOWER_SCENE_CLIMB_MOVE_PORTION = 0.56;
+
+function getTowerShotProgressFromOutroTimer(timer) {
+  return clamp(
+    (timer - STAGE_TWO_OUTRO_RUN_SHOT_END) /
+      Math.max(1, STAGE_TWO_OUTRO_TOTAL_FRAMES - STAGE_TWO_OUTRO_RUN_SHOT_END),
+    0,
+    1
+  );
+}
+
+function getTowerClimbState(progress) {
+  const climbProgress = clamp(
+    (progress - TOWER_SCENE_CLIMB_START_PROGRESS) / TOWER_SCENE_CLIMB_DURATION_PROGRESS,
+    0,
+    1
+  );
+  if (climbProgress <= 0.001) {
+    return {
+      active: false,
+      progress: 0,
+      stepIndex: -1,
+      startedStepIndex: -1,
+      stepProgress: 0,
+      movePhase: 0,
+      travel: 0,
+      hop: 0,
+      settle: 0,
+    };
+  }
+
+  const scaled = climbProgress * TOWER_SCENE_CLIMB_STEP_COUNT;
+  const rawStepIndex = Math.floor(scaled);
+  const stepIndex = Math.min(TOWER_SCENE_CLIMB_STEP_COUNT - 1, Math.max(0, rawStepIndex));
+  const stepProgress = climbProgress >= 1 ? 1 : scaled - rawStepIndex;
+  const movePhase = easeOutCubic(clamp(stepProgress / TOWER_SCENE_CLIMB_MOVE_PORTION, 0, 1));
+  const traveledSteps = Math.min(TOWER_SCENE_CLIMB_STEP_COUNT, stepIndex + movePhase);
+  const travel = traveledSteps / TOWER_SCENE_CLIMB_STEP_COUNT;
+  const hop = Math.sin(clamp(stepProgress / TOWER_SCENE_CLIMB_MOVE_PORTION, 0, 1) * Math.PI) * 12;
+  const settlePhase = clamp(
+    (stepProgress - TOWER_SCENE_CLIMB_MOVE_PORTION) /
+      Math.max(0.001, 1 - TOWER_SCENE_CLIMB_MOVE_PORTION),
+    0,
+    1
+  );
+  const settle = Math.sin(settlePhase * Math.PI) * 1.4;
+
+  return {
+    active: true,
+    progress: climbProgress,
+    stepIndex,
+    startedStepIndex: stepIndex,
+    stepProgress,
+    movePhase,
+    travel,
+    hop,
+    settle,
+  };
+}
+
+function syncPrologueCueStateForProgress(progress) {
+  const t = clamp(progress, 0, 1);
+  const targetCaptionIndex = getPrologueCaptionIndex(t);
+  const cues = game.prologueCueState || {
+    captionIndex: -1,
+    rushPlayed: false,
+    rumblePlayed: false,
+    stealPlayed: false,
+    lockPlayed: false,
+    finalePlayed: false,
+  };
+  cues.captionIndex = Math.max(-1, targetCaptionIndex - 1);
+  cues.rushPlayed = t > 0.18;
+  cues.rumblePlayed = t > 0.34;
+  cues.stealPlayed = t > 0.52;
+  cues.lockPlayed = t > 0.74;
+  cues.finalePlayed = t > 0.86;
+  game.prologueCueState = cues;
+}
+
+function advancePrologueIntroStep() {
+  if (game.state !== "prologue") {
+    return false;
+  }
+  stopSubtitleNarration();
+  const currentProgress = clamp(game.prologueTimer / PROLOGUE_TOTAL_FRAMES, 0, 1);
+  const nextStop = PROLOGUE_CAPTION_PROGRESS_STOPS.find((stop) => stop > currentProgress + 0.001);
+  if (nextStop == null) {
+    finishPrologueIntro();
+    return true;
+  }
+  syncPrologueCueStateForProgress(nextStop);
+  game.prologueTimer = nextStop * PROLOGUE_TOTAL_FRAMES;
+  return true;
+}
+
+function syncStageTwoOutroCueStateForTimer(outro, timer) {
+  if (!outro) return;
+  const t = Math.max(0, timer);
+  outro.impactPlayed = t > 0;
+  outro.collapsePlayed = t > 18;
+  outro.aftershockPlayed = t > 56;
+  outro.smokeNarrated = t > STAGE_TWO_OUTRO_IMPACT_SHOT_END + 12;
+  outro.smokeRattlePlayed = t > STAGE_TWO_OUTRO_IMPACT_SHOT_END + 26;
+  outro.rushPlayed = t > 198;
+  outro.runNarrated = t > STAGE_TWO_OUTRO_RUN_SHOT_START;
+  outro.towerRevealPlayed = t > 418;
+  outro.towerNarrated = t > STAGE_TWO_OUTRO_RUN_SHOT_END + 70;
+  outro.climbNarrated = t > STAGE_TWO_OUTRO_RUN_SHOT_END + 318;
+  outro.finaleNarrated = t > STAGE_TWO_OUTRO_TOTAL_FRAMES - 168;
+  outro.finalHitPlayed = t > STAGE_TWO_OUTRO_FINAL_CARD_START;
+  outro.runStepTimer = 0;
+  outro.climbStepTimer = 0;
+  outro.lastClimbStepIndex = -1;
+}
+
+function advanceStageTwoOutroStep() {
+  if (game.state !== "stage2Outro" || !game.stageTwoOutro) {
+    return false;
+  }
+  stopSubtitleNarration();
+  const outro = game.stageTwoOutro;
+  const current = outro.timer || 0;
+  const stops = [
+    STAGE_TWO_OUTRO_IMPACT_SHOT_END,
+    STAGE_TWO_OUTRO_RUN_SHOT_START,
+    STAGE_TWO_OUTRO_RUN_SHOT_END,
+    STAGE_TWO_OUTRO_CLIMB_SHOT_START,
+    STAGE_TWO_OUTRO_FINAL_CARD_START,
+  ];
+  const nextStop = stops.find((stop) => stop > current + 0.001);
+  if (nextStop == null) {
+    finishStageTwoToBossCutscene();
+    return true;
+  }
+  syncStageTwoOutroCueStateForTimer(outro, nextStop);
+  outro.timer = nextStop;
+  return true;
+}
+
+function syncEndingCueStateForTimer(ending, timer) {
+  if (!ending) return;
+  ending.openCuePlayed = timer > 0;
+  ending.reunionCuePlayed = timer > ENDING_RESCUE_REUNION_START;
+  ending.finaleCuePlayed = timer > ENDING_RESCUE_FINALE_START;
+}
+
+function advanceEndingRescueStep() {
+  if (game.state !== "ending" || !game.endingScene) {
+    return false;
+  }
+  if (!canSkipEndingRescueScene()) {
+    return false;
+  }
+  stopSubtitleNarration();
+  const ending = game.endingScene;
+  const current = ending.timer || 0;
+  const nextStop = [ENDING_RESCUE_REUNION_START, ENDING_RESCUE_FINALE_START].find(
+    (stop) => stop > current + 0.001
+  );
+  if (nextStop == null) {
+    finishEndingRescueScene();
+    return true;
+  }
+  syncEndingCueStateForTimer(ending, nextStop);
+  ending.timer = nextStop;
+  return true;
+}
 
 function startStageTwoToBossCutscene(stageTwo) {
   stopSubtitleNarration();
@@ -2203,6 +2383,7 @@ function startStageTwoToBossCutscene(stageTwo) {
     finalHitPlayed: false,
     runStepTimer: 0,
     climbStepTimer: 0,
+    lastClimbStepIndex: -1,
     slowmo: 0,
   };
   game.state = "stage2Outro";
@@ -2223,6 +2404,7 @@ function enterWonResults() {
     game.stage = 2;
   }
   game.state = "won";
+  game.flashTimer = 0;
   game.winFx = createWinFx();
   game.overlayTimer = 9999;
   game.overlayText = "康貝特200p 重見天日！";
@@ -2249,11 +2431,12 @@ const SCENE_TR_SLINGSHOT_TO_BOSS = {
   variant: "tower",
 };
 const SCENE_TR_TO_ENDING = {
-  outFrames: 52,
-  holdFrames: 30,
-  inFrames: 52,
-  caption: "壟斷結界碎裂",
-  captionSub: "拯救康貝特200p",
+  outFrames: 180,
+  holdFrames: 120,
+  inFrames: 60,
+  caption: "MISSION COMPLETE",
+  captionSub: "逆襲成功：康貝特 200p 全線奪回",
+  variant: "missionCard",
 };
 const SCENE_TR_ENDING_TO_FINAL = {
   outFrames: 44,
@@ -2440,8 +2623,8 @@ function drawTowerSceneTransition(tr, alpha) {
   ctx.restore();
 
   const towerX = 654;
-  // Taller tower so the base reads before we pan up.
-  const towerY = -40;
+  // Lower the whole model a touch so the tower sits more comfortably in frame.
+  const towerY = -12;
   const towerW = 182;
   const towerH = 440;
   const towerRight = towerX + towerW;
@@ -2653,13 +2836,13 @@ function drawTowerSceneTransition(tr, alpha) {
   }
   ctx.restore();
 
-  const climbStart = 0.42;
-  const climbDuration = 0.38;
-  const climbProgress = clamp((p - climbStart) / climbDuration, 0, 1);
-  const climb = easeInOutCubic(climbProgress);
+  const climbState = getTowerClimbState(p);
+  const climb = climbState.progress;
 
   // Beat 3: hero stands at the base and looks up for longer before climbing.
-  const baseHold = clamp((0.35 - p) / 0.35, 0, 1) * clamp((climbStart - p) / 0.07, 0, 1);
+  const baseHold =
+    clamp((0.35 - p) / 0.35, 0, 1) *
+    clamp((TOWER_SCENE_CLIMB_START_PROGRESS - p) / 0.07, 0, 1);
   if (baseHold > 0.001) {
     const x = towerX - 112;
     const y = towerY + towerH - 12 + Math.sin(p * 8) * 1.4;
@@ -2688,32 +2871,41 @@ function drawTowerSceneTransition(tr, alpha) {
     ctx.restore();
   }
 
-  // Beat 4: hero head climbing the tower (later start, but climbs more decisively).
+  // Beat 4: hero climbs peg by peg instead of gliding.
   let heroX = null;
   let heroY = null;
-  if (climb > 0.001) {
-    // Continuous climb (avoid “steppy” motion).
-    const bob = Math.sin(p * Math.PI * 11) * 2.2;
+  if (climbState.active) {
     const fromX = towerX - 28;
     const toX = towerRight - 18;
-    const x = fromX + (toX - fromX) * (0.25 + climb * 0.75);
-    const y = (towerY + towerH - 14) - (towerH - 126) * climb + bob;
-    const climbTilt = -0.12 + Math.sin(p * Math.PI * 7.5) * 0.035;
+    const fromY = towerY + towerH - 14;
+    const climbRise = towerH - 126;
+    const x = fromX + (toX - fromX) * (0.25 + climbState.travel * 0.75);
+    const y = fromY - climbRise * climbState.travel - climbState.hop + climbState.settle;
+    const sway = climbState.stepIndex % 2 === 0 ? 1 : -1;
+    const climbTilt = -0.1 + sway * 0.045 * climbState.movePhase;
     heroX = x;
     heroY = y;
 
-    drawTowerHeroCutout(x, y, 46, climbTilt, 0.98, 0.96);
+    drawTowerHeroCutout(x, y, 46, climbTilt, 0.98, 0.96 + climbState.movePhase * 0.015);
 
-    // Tiny “handhold” ticks on the tower edge for clarity.
+    // Ladder pegs line up with each visible step.
     ctx.save();
-    ctx.globalAlpha = 0.35 + climb * 0.25;
-    ctx.strokeStyle = "rgba(255, 247, 232, 0.65)";
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 7; i += 1) {
-      const yy = towerY + 70 + i * 38;
+    ctx.lineWidth = 2.4;
+    for (let i = 0; i < TOWER_SCENE_CLIMB_STEP_COUNT; i += 1) {
+      const pegTravel = (i + 1) / TOWER_SCENE_CLIMB_STEP_COUNT;
+      const yy = fromY - climbRise * pegTravel;
+      const completed = climbState.travel >= pegTravel - 0.03;
+      const activePeg = i === climbState.stepIndex;
+      ctx.globalAlpha = completed ? 0.78 : activePeg ? 0.62 : 0.34;
+      ctx.strokeStyle = completed
+        ? "rgba(255, 236, 176, 0.95)"
+        : activePeg
+          ? "rgba(255, 247, 232, 0.82)"
+          : "rgba(255, 247, 232, 0.5)";
+      const pegInset = i % 2 === 0 ? 0 : 5;
       ctx.beginPath();
-      ctx.moveTo(towerRight - 10, yy);
-      ctx.lineTo(towerRight + 6, yy - 6);
+      ctx.moveTo(towerRight - 13 - pegInset, yy);
+      ctx.lineTo(towerRight + 8 - pegInset, yy - 7);
       ctx.stroke();
     }
     ctx.restore();
@@ -3255,6 +3447,57 @@ function drawSceneTransition() {
   const a = clamp(tr.alpha, 0, 1);
   if (a <= 0) return;
   ctx.save();
+  ctx.globalAlpha = a;
+
+  if (tr.variant === "missionCard") {
+    const fadeIn = easeOutCubic(clamp(a / 0.8, 0, 1));
+    const driftY = (1 - fadeIn) * 16;
+    const bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+    bg.addColorStop(0, `rgba(0, 0, 0, ${0.98 * a})`);
+    bg.addColorStop(0.56, `rgba(4, 8, 18, ${0.98 * a})`);
+    bg.addColorStop(1, `rgba(0, 0, 0, ${a})`);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    ctx.globalAlpha = 0.22 * a;
+    const glow = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2 - 10, 40, WIDTH / 2, HEIGHT / 2 - 10, 360);
+    glow.addColorStop(0, "rgba(255, 214, 120, 0.5)");
+    glow.addColorStop(0.45, "rgba(255, 214, 120, 0.12)");
+    glow.addColorStop(1, "rgba(255, 214, 120, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    ctx.globalAlpha = 0.8 * a;
+    const stripeY = 110 + driftY * 0.4;
+    const stripeGrad = ctx.createLinearGradient(WIDTH / 2 - 180, stripeY, WIDTH / 2 + 180, stripeY);
+    stripeGrad.addColorStop(0, palette.stripeRed);
+    stripeGrad.addColorStop(0.5, palette.stripeBlue);
+    stripeGrad.addColorStop(1, palette.stripeOrange);
+    ctx.fillStyle = stripeGrad;
+    roundRect(WIDTH / 2 - 178, stripeY, 356, 8, 4);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.9 * a;
+    ctx.fillStyle = "rgba(255, 247, 232, 0.6)";
+    ctx.font = "bold 13px Avenir Next, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("CAMPAIGN SUCCESS", WIDTH / 2, HEIGHT / 2 - 78 + driftY * 0.45);
+
+    ctx.globalAlpha = a;
+    ctx.shadowColor = "rgba(0,0,0,0.5)";
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = "#ffec8c";
+    ctx.font = "bold 38px Avenir Next, sans-serif";
+    ctx.fillText(tr.caption, WIDTH / 2, HEIGHT / 2 - 6 + driftY);
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = "rgba(255, 247, 232, 0.88)";
+    ctx.font = "600 18px Avenir Next, sans-serif";
+    ctx.fillText(tr.captionSub, WIDTH / 2, HEIGHT / 2 + 32 + driftY * 0.75);
+    ctx.restore();
+    return;
+  }
+
   ctx.globalAlpha = a * 0.94;
   const vignette = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, 80, WIDTH / 2, HEIGHT / 2, 760);
   vignette.addColorStop(0, "rgba(25, 42, 92, 0.78)");
@@ -4329,14 +4572,15 @@ function updateStageTwo(frameScale) {
       }
     }
 
-    const climbAudioStart = STAGE_TWO_OUTRO_RUN_SHOT_END + 286;
-    const climbAudioEnd = STAGE_TWO_OUTRO_TOTAL_FRAMES - 220;
-    if (t >= climbAudioStart && t < climbAudioEnd) {
-      outro.climbStepTimer -= frameScale;
-      if (outro.climbStepTimer <= 0) {
+    const towerShotProgress = getTowerShotProgressFromOutroTimer(t);
+    const climbState = getTowerClimbState(towerShotProgress);
+    if (climbState.active) {
+      if (climbState.startedStepIndex !== outro.lastClimbStepIndex) {
+        outro.lastClimbStepIndex = climbState.startedStepIndex;
         soundFx.cinematicClimbStep?.();
-        outro.climbStepTimer = 22;
       }
+    } else {
+      outro.lastClimbStepIndex = -1;
     }
 
     if (t >= STAGE_TWO_OUTRO_TOTAL_FRAMES - 180 && !outro.finalHitPlayed) {
@@ -4467,7 +4711,7 @@ function updateStageTwo(frameScale) {
       if (SLINGSHOT_FIRST_ORDER) {
         startStageTwoToBossCutscene(stageTwo);
       } else {
-        startSceneTransition(() => startEndingRescueScene(), SCENE_TR_TO_ENDING);
+        startMissionCompleteCard();
       }
     }
     return;
@@ -4543,8 +4787,11 @@ function startEndingRescueScene() {
     reunionCuePlayed: false,
     finaleCuePlayed: false,
     walkStepTimer: 8,
+    startedAt: typeof performance !== "undefined" ? performance.now() : Date.now(),
+    skipLockMs: ENDING_RESCUE_SKIP_LOCK_MS,
   };
   game.state = "ending";
+  game.flashTimer = 44;
   game.overlayTimer = 0;
   game.overlayText = "";
   soundFx.win();
@@ -4557,13 +4804,26 @@ function finishEndingRescueScene() {
   startFinalVictoryVideo();
 }
 
+function canSkipEndingRescueScene() {
+  const ending = game.endingScene;
+  if (!ending) {
+    return true;
+  }
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+  return now - (ending.startedAt ?? 0) >= (ending.skipLockMs ?? ENDING_RESCUE_SKIP_LOCK_MS);
+}
+
 function startFinalVictoryVideo() {
   stopSubtitleNarration();
   if (!cutsceneVideo || !cutsceneVideoOverlay) {
     enterWonResults();
     return;
   }
-  game.finalVictoryVideo = { active: true };
+  game.finalVictoryVideo = {
+    active: true,
+    startedAt: typeof performance !== "undefined" ? performance.now() : Date.now(),
+    skipLockMs: FINAL_VICTORY_VIDEO_SKIP_LOCK_MS,
+  };
   game.state = "finalVideo";
   setCutsceneVideoVisible(true);
   cutsceneVideo.currentTime = 0;
@@ -4586,6 +4846,15 @@ function finishFinalVictoryVideo() {
   game.finalVictoryVideo = null;
   resetCutsceneVideoUi();
   enterWonResults();
+}
+
+function canSkipFinalVictoryVideo() {
+  const video = game.finalVictoryVideo;
+  if (!video?.active) {
+    return true;
+  }
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+  return now - (video.startedAt ?? 0) >= (video.skipLockMs ?? FINAL_VICTORY_VIDEO_SKIP_LOCK_MS);
 }
 
 function createWinFx() {
@@ -4826,6 +5095,41 @@ function finishPrologueStageCard() {
   game.overlayTimer = 84;
   game.overlayText = "往右攻頂能量巨塔，準備面對兩大霸主";
   soundFx.start();
+}
+
+function startMissionCompleteCard() {
+  stopSubtitleNarration();
+  game.state = "missionCompleteCard";
+  game.missionCompleteCardTimer = 0;
+  game.overlayTimer = 0;
+  game.overlayText = "";
+  soundFx.start();
+  soundFx.cinematicTitleHit();
+  soundFx.cinematicResolve();
+  speakSubtitleNarration("任務達成。康貝特 200p 成功奪回，本土補能之魂重新上架。", {
+    role: "narrator",
+    rate: 0.86,
+    pitch: 1.05,
+  });
+}
+
+function finishMissionCompleteCard() {
+  if (game.state !== "missionCompleteCard") {
+    return;
+  }
+  stopSubtitleNarration();
+  game.missionCompleteCardTimer = 0;
+  startEndingRescueScene();
+}
+
+function updateMissionCompleteCard(frameScale) {
+  if (game.state !== "missionCompleteCard") {
+    return;
+  }
+  game.missionCompleteCardTimer += frameScale;
+  if (game.missionCompleteCardTimer >= PROLOGUE_STAGE_CARD_FRAMES) {
+    finishMissionCompleteCard();
+  }
 }
 
 function finishPrologueIntro() {

@@ -1285,6 +1285,8 @@ function drawTowerSceneTransitionByProgress(progress, alpha = 1) {
 
 function drawStageTwoOutroHeroHead(x, y, r = 18, alpha = 1, rotation = 0, stretchY = 1) {
   if (alpha <= 0.001) return;
+  const image = canDrawImage(art.player) ? art.player : canDrawImage(art.face) ? art.face : null;
+  const drawH = r * 2.7;
 
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -1294,27 +1296,26 @@ function drawStageTwoOutroHeroHead(x, y, r = 18, alpha = 1, rotation = 0, stretc
 
   ctx.fillStyle = "rgba(10, 14, 28, 0.22)";
   ctx.beginPath();
-  ctx.ellipse(0, r + 15, r * 0.96, 7, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, drawH * 0.46, r * 0.92, 6, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.24)";
-  ctx.shadowBlur = 12;
-  ctx.shadowOffsetY = 5;
-  ctx.beginPath();
-  ctx.arc(0, 0, r + 2, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
-  ctx.fill();
-  ctx.restore();
-
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.clip();
-  if (!drawCoverImage(art.player, -r, -r, r * 2, r * 2, 0, 1.12, 0, 0)) {
-    if (!drawCoverImage(art.face, -r, -r, r * 2, r * 2, -Math.PI / 2, 1.48, 0.07, -0.03)) {
-      ctx.fillStyle = "#f4cfaa";
-      ctx.fillRect(-r, -r, r * 2, r * 2);
+  if (image) {
+    const ratio = image.naturalWidth / image.naturalHeight;
+    const drawW = drawH * ratio;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.24)";
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 5;
+    if (image === art.player) {
+      ctx.drawImage(image, -drawW / 2, -drawH * 0.9, drawW, drawH);
+    } else {
+      ctx.drawImage(image, -drawW / 2, -drawH * 0.84, drawW, drawH);
     }
+    ctx.restore();
+  } else {
+    ctx.fillStyle = "#f4cfaa";
+    roundRect(-r * 0.32, -drawH * 0.7, r * 0.64, r * 0.82, 12);
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -1774,50 +1775,7 @@ function drawStageTwoOutroOverlay() {
 
   const finalCardStart = STAGE_TWO_OUTRO_TOTAL_FRAMES - 180;
   if (t > finalCardStart) {
-    const finalCardProgress = clamp((t - finalCardStart) / 180, 0, 1);
-    const fadeIn = easeOutCubic(clamp(finalCardProgress / 0.34, 0, 1));
-    const textAlpha = easeOutCubic(clamp((finalCardProgress - 0.16) / 0.4, 0, 1));
-    const hintAlpha = easeOutCubic(clamp((finalCardProgress - 0.28) / 0.34, 0, 1));
-    const driftY = (1 - fadeIn) * 18;
-    ctx.save();
-    const bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-    bg.addColorStop(0, `rgba(0, 0, 0, ${0.94 * fadeIn})`);
-    bg.addColorStop(0.55, `rgba(4, 8, 18, ${0.96 * fadeIn})`);
-    bg.addColorStop(1, `rgba(0, 0, 0, ${fadeIn})`);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-    ctx.globalAlpha = 0.18 * fadeIn;
-    const glow = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2 - 12, 30, WIDTH / 2, HEIGHT / 2 - 12, 280);
-    glow.addColorStop(0, "rgba(255, 214, 120, 0.46)");
-    glow.addColorStop(0.42, "rgba(255, 214, 120, 0.08)");
-    glow.addColorStop(1, "rgba(255, 214, 120, 0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-    ctx.globalAlpha = 0.72 * textAlpha;
-    const stripeGrad = ctx.createLinearGradient(WIDTH / 2 - 150, HEIGHT / 2 - 72, WIDTH / 2 + 150, HEIGHT / 2 - 72);
-    stripeGrad.addColorStop(0, palette.stripeRed);
-    stripeGrad.addColorStop(0.5, palette.stripeBlue);
-    stripeGrad.addColorStop(1, palette.stripeOrange);
-    ctx.fillStyle = stripeGrad;
-    roundRect(WIDTH / 2 - 148, HEIGHT / 2 - 74 + driftY * 0.35, 296, 8, 4);
-    ctx.fill();
-
-    ctx.globalAlpha = textAlpha;
-    ctx.fillStyle = "#ffec8c";
-    ctx.font = "bold 30px Avenir Next, sans-serif";
-    ctx.textAlign = "center";
-    ctx.shadowColor = "rgba(0,0,0,0.45)";
-    ctx.shadowBlur = 16;
-    ctx.fillText("決戰！能量之巔", WIDTH / 2, HEIGHT / 2 - 6 + driftY);
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 0.84 * hintAlpha;
-    ctx.fillStyle = "rgba(255, 247, 232, 0.82)";
-    ctx.font = "600 16px Avenir Next, sans-serif";
-    ctx.fillText("200p 就在塔頂，衝上去把它救回來。", WIDTH / 2, HEIGHT / 2 + 28 + driftY * 0.72);
-    ctx.restore();
+    drawPrologueStageCard();
   }
 }
 
@@ -2368,7 +2326,7 @@ function drawPrologueIntro() {
             ? ["任務啟動：拯救康貝特200P", "先擊碎通路高牆，奪回上架權。"]
             : t < 0.88
               ? ["操作教學", "A/D 移動 · Space 跳 · Shift 衝刺（可二段跳）"]
-              : ["準備開始", "點一下 / Space / Enter 開始（可略過動畫）"];
+              : ["準備開始", "點一下 / Space / Enter 進到下一幕"];
 
   // Subtitles at bottom: keep the tower/cage area clear.
   const captionsBoxY = 374;
@@ -2399,20 +2357,35 @@ function drawPrologueIntro() {
   ctx.fill();
   ctx.fillStyle = "rgba(255, 247, 232, 0.76)";
   ctx.font = "bold 14px Avenir Next, sans-serif";
-  ctx.fillText("點一下 / Space / Enter 可跳過動畫", WIDTH / 2, 506);
+  ctx.fillText("點一下 / Space / Enter 下一幕", WIDTH / 2, 506);
 }
 
 function drawPrologueStageCard() {
-  const title = SLINGSHOT_FIRST_ORDER ? "第一階段：擊碎！通路高牆" : "第一階段：決戰！能量之巔";
-  const subtitle = SLINGSHOT_FIRST_ORDER
-    ? "發射僅存的康貝特，先砸出第一道上架破口。"
-    : "殺上能量巨塔，把被封印的 200p 奪回來。";
-  const timer = game.prologueStageCardTimer || 0;
-  const t = clamp(timer / Math.max(1, PROLOGUE_STAGE_CARD_FRAMES), 0, 1);
-  const fadeIn = easeOutCubic(clamp(t / 0.18, 0, 1));
-  const fadeOut = easeInOutCubic(clamp((1 - t) / 0.16, 0, 1));
+  const isStageTwo = game.state === "stage2Outro";
+  let title, subtitle;
+
+  if (isStageTwo) {
+    title = SLINGSHOT_FIRST_ORDER ? "第二階段：決戰！能量之巔" : "第二階段：擊碎！通路高牆";
+    subtitle = SLINGSHOT_FIRST_ORDER
+      ? "殺上能量巨塔，把被封印的 200p 奪回來。"
+      : "發射僅存的康貝特，先砸出第一道上架破口。";
+  } else {
+    title = SLINGSHOT_FIRST_ORDER ? "第一階段：擊碎！通路高牆" : "第一階段：決戰！能量之巔";
+    subtitle = SLINGSHOT_FIRST_ORDER
+      ? "發射僅存的康貝特，先砸出第一道上架破口。"
+      : "殺上能量巨塔，把被封印的 200p 奪回來。";
+  }
+
+  const timer = isStageTwo
+    ? (game.stageTwoOutro.timer - (STAGE_TWO_OUTRO_TOTAL_FRAMES - 180))
+    : (game.prologueStageCardTimer || 0);
+  const duration = 180;
+  const t = clamp(timer / duration, 0, 1);
+
+  const fadeIn = easeOutCubic(clamp(t / 0.34, 0, 1));
+  const fadeOut = isStageTwo ? 1 : easeInOutCubic(clamp((1 - t) / 0.16, 0, 1));
   const alpha = Math.min(fadeIn, fadeOut);
-  const driftY = (1 - fadeIn) * 16 - (1 - fadeOut) * 8;
+  const driftY = (1 - fadeIn) * 16;
 
   const bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
   bg.addColorStop(0, `rgba(0, 0, 0, ${0.98 * alpha})`);
@@ -2465,10 +2438,80 @@ function drawPrologueStageCard() {
   ctx.font = "600 17px Avenir Next, sans-serif";
   ctx.fillText(subtitle, WIDTH / 2, HEIGHT / 2 + 28 + driftY * 0.75);
 
+  if (!isStageTwo) {
+    ctx.globalAlpha = alpha * clamp((t - 0.18) / 0.2, 0, 1);
+    ctx.fillStyle = "rgba(255, 247, 232, 0.56)";
+    ctx.font = "600 13px Avenir Next, sans-serif";
+    ctx.fillText("點一下 / Space / Enter 下一幕", WIDTH / 2, HEIGHT - 34);
+  }
+  ctx.restore();
+}
+
+function drawMissionCompleteCard() {
+  const title = "MISSION COMPLETE";
+  const subtitle = "逆襲成功：康貝特 200p 全線奪回";
+  const timer = game.missionCompleteCardTimer || 0;
+  const t = clamp(timer / Math.max(1, PROLOGUE_STAGE_CARD_FRAMES), 0, 1);
+  const fadeIn = easeOutCubic(clamp(t / 0.18, 0, 1));
+  const fadeOut = easeInOutCubic(clamp((1 - t) / 0.16, 0, 1));
+  const alpha = Math.min(fadeIn, fadeOut);
+  const driftY = (1 - fadeIn) * 16 - (1 - fadeOut) * 8;
+
+  const bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  bg.addColorStop(0, `rgba(0, 0, 0, ${0.98 * alpha})`);
+  bg.addColorStop(0.56, `rgba(4, 8, 18, ${0.98 * alpha})`);
+  bg.addColorStop(1, `rgba(0, 0, 0, ${alpha})`);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  ctx.save();
+  ctx.globalAlpha = 0.22 * alpha;
+  const glow = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2 - 10, 40, WIDTH / 2, HEIGHT / 2 - 10, 360);
+  glow.addColorStop(0, "rgba(255, 214, 120, 0.5)");
+  glow.addColorStop(0.45, "rgba(255, 214, 120, 0.12)");
+  glow.addColorStop(1, "rgba(255, 214, 120, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.8 * alpha;
+  const stripeY = 110 + driftY * 0.4;
+  const stripeGrad = ctx.createLinearGradient(WIDTH / 2 - 180, stripeY, WIDTH / 2 + 180, stripeY);
+  stripeGrad.addColorStop(0, palette.stripeRed);
+  stripeGrad.addColorStop(0.5, palette.stripeBlue);
+  stripeGrad.addColorStop(1, palette.stripeOrange);
+  ctx.fillStyle = stripeGrad;
+  roundRect(WIDTH / 2 - 178, stripeY, 356, 8, 4);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.9 * alpha;
+  ctx.fillStyle = "rgba(255, 247, 232, 0.6)";
+  ctx.font = "bold 13px Avenir Next, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("CAMPAIGN SUCCESS", WIDTH / 2, HEIGHT / 2 - 78 + driftY * 0.45);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.shadowColor = "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = "#ffec8c";
+  ctx.font = "bold 38px Avenir Next, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(title, WIDTH / 2, HEIGHT / 2 - 6 + driftY);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = "rgba(255, 247, 232, 0.88)";
+  ctx.font = "600 18px Avenir Next, sans-serif";
+  ctx.fillText(subtitle, WIDTH / 2, HEIGHT / 2 + 32 + driftY * 0.75);
+
   ctx.globalAlpha = alpha * clamp((t - 0.18) / 0.2, 0, 1);
   ctx.fillStyle = "rgba(255, 247, 232, 0.56)";
   ctx.font = "600 13px Avenir Next, sans-serif";
-  ctx.fillText("點一下 / Space / Enter 可略過", WIDTH / 2, HEIGHT - 34);
+  ctx.fillText("點一下 / Space / Enter 下一幕", WIDTH / 2, HEIGHT - 34);
   ctx.restore();
 }
 
@@ -3015,13 +3058,9 @@ function drawEndingRescueScene() {
   ctx.fillStyle = titleStripe;
   ctx.fillRect(172, 88, WIDTH - 344, 5);
 
-  ctx.fillStyle = "rgba(255, 255, 255, 0.62)";
-  ctx.font = "600 13px Avenir Next, sans-serif";
-  ctx.fillText("壟斷結界碎裂 · 傳說配方回歸", WIDTH / 2, 54);
-
   ctx.fillStyle = "#fff7e8";
   ctx.font = "bold 30px Avenir Next, sans-serif";
-  ctx.fillText("康貝特200p 重見天日", WIDTH / 2, 82);
+  ctx.fillText("康貝特 200p 重見天日", WIDTH / 2, 68);
 
   if (ending.timer > 210) {
     ctx.fillStyle = "rgba(255, 252, 245, 0.92)";
@@ -3041,7 +3080,7 @@ function drawEndingRescueScene() {
   ctx.fillStyle = `rgba(255, 247, 232, ${0.55 + entranceFade * 0.38})`;
   ctx.font = "13px Avenir Next, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("按 Space、Enter 或點一下可略過", WIDTH / 2, HEIGHT - 28);
+  ctx.fillText("按 Space、Enter 或點一下下一幕", WIDTH / 2, HEIGHT - 28);
 }
 
 function drawResultFeaturePanel(x, y, w, h, isWin) {
@@ -3539,6 +3578,13 @@ function render() {
     return;
   }
 
+  if (game.state === "missionCompleteCard") {
+    syncDebugHudButtonsVisibility();
+    drawMissionCompleteCard();
+    syncMobileControlsVisibility();
+    return;
+  }
+
   if (game.state === "ending") {
     syncDebugHudButtonsVisibility();
     drawEndingRescueScene();
@@ -3678,6 +3724,7 @@ function syncDebugHudButtonsVisibility() {
     game.state === "intro" ||
     game.state === "prologue" ||
     game.state === "prologueStageCard" ||
+    game.state === "missionCompleteCard" ||
     game.state === "won" ||
     game.state === "gameover";
   if (skipButton) {

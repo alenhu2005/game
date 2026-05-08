@@ -18,13 +18,18 @@ window.addEventListener("keydown", (event) => {
   if (
     (game.state === "prologue" ||
       game.state === "prologueStageCard" ||
+      game.state === "missionCompleteCard" ||
       game.bossCutscene?.active ||
       game.state === "stage2Outro" ||
       game.state === "ending") &&
     (event.code === "Space" || event.code === "Enter")
   ) {
+    if (game.state === "ending" && !canSkipEndingRescueScene()) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
-    skipCurrentDialogueScene();
+    advanceCurrentDialogueScene();
     return;
   }
 
@@ -195,7 +200,11 @@ function shouldIgnoreProloguePointer(event) {
 }
 
 function skipPrologueFromShellTap(event) {
-  if (game.state !== "prologue" && game.state !== "prologueStageCard") {
+  if (
+    game.state !== "prologue" &&
+    game.state !== "prologueStageCard" &&
+    game.state !== "missionCompleteCard"
+  ) {
     return;
   }
   if (shouldIgnoreProloguePointer(event)) {
@@ -205,11 +214,7 @@ function skipPrologueFromShellTap(event) {
     return;
   }
   unlockAudio();
-  if (game.state === "prologue") {
-    finishPrologueIntro();
-  } else {
-    finishPrologueStageCard();
-  }
+  advanceCurrentDialogueScene();
   event.preventDefault();
 }
 
@@ -248,6 +253,11 @@ if (cutsceneVideo) {
 if (cutsceneVideoOverlay) {
   cutsceneVideoOverlay.addEventListener("pointerdown", (event) => {
     if (game.finalVictoryVideo?.active) {
+      if (!canSkipFinalVictoryVideo()) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       finishActiveCutsceneVideo();
@@ -256,13 +266,18 @@ if (cutsceneVideoOverlay) {
     if (game.bossCutscene?.active && game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE) {
       event.preventDefault();
       event.stopPropagation();
-      skipBossCutscene();
+      advanceBossCutscene();
     }
   });
   cutsceneVideoOverlay.addEventListener(
     "touchend",
     (event) => {
       if (game.finalVictoryVideo?.active) {
+        if (!canSkipFinalVictoryVideo()) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         finishActiveCutsceneVideo();
@@ -271,7 +286,7 @@ if (cutsceneVideoOverlay) {
       if (game.bossCutscene?.active && game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE) {
         event.preventDefault();
         event.stopPropagation();
-        skipBossCutscene();
+        advanceBossCutscene();
       }
     },
     { passive: false }
@@ -339,12 +354,16 @@ canvas.addEventListener("pointerdown", (event) => {
   unlockAudio();
 
   if (game.state === "finalVideo") {
+    if (!canSkipFinalVictoryVideo()) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     return;
   }
 
   if (game.bossCutscene?.active && game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE) {
-    skipBossCutscene();
+    advanceBossCutscene();
     event.preventDefault();
     return;
   }
@@ -364,7 +383,11 @@ canvas.addEventListener("pointerdown", (event) => {
   }
 
   if (game.state === "ending") {
-    skipCurrentDialogueScene();
+    if (!canSkipEndingRescueScene()) {
+      event.preventDefault();
+      return;
+    }
+    advanceCurrentDialogueScene();
     event.preventDefault();
     return;
   }
@@ -372,10 +395,11 @@ canvas.addEventListener("pointerdown", (event) => {
   if (
     game.state === "prologue" ||
     game.state === "prologueStageCard" ||
+    game.state === "missionCompleteCard" ||
     game.bossCutscene?.active ||
     game.state === "stage2Outro"
   ) {
-    skipCurrentDialogueScene();
+    advanceCurrentDialogueScene();
     event.preventDefault();
     return;
   }
@@ -484,11 +508,16 @@ canvas.addEventListener(
     if (
       game.state === "prologue" ||
       game.state === "prologueStageCard" ||
+      game.state === "missionCompleteCard" ||
       game.bossCutscene?.active ||
       game.state === "stage2Outro" ||
       game.state === "ending"
     ) {
-      skipCurrentDialogueScene();
+      if (game.state === "ending" && !canSkipEndingRescueScene()) {
+        event.preventDefault();
+        return;
+      }
+      advanceCurrentDialogueScene();
       event.preventDefault();
       return;
     }
