@@ -1,2 +1,5 @@
 .DS_Store
 node_modules/
+
+# 本地／自動化畫面截圖產物（例：場景 review）
+output/

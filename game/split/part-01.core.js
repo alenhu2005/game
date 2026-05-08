@@ -110,6 +110,7 @@ const BOSS_PHASE_SHIFT_CUTSCENE_FRAMES = 210;
 const BOSS_VICTORY_CUTSCENE_FRAMES = 420;
 // Opening prologue is now longer to include essential player instructions.
 const PROLOGUE_TOTAL_FRAMES = 1050;
+const PROLOGUE_STAGE_CARD_FRAMES = 224;
 const ENDING_RESCUE_TOTAL_FRAMES = 600;
 const ENDING_RESCUE_WALK_FRAMES = 160;
 const ENDING_RESCUE_REUNION_START = 230;
@@ -152,12 +153,35 @@ const BOSS_VICTORY_EXCHANGE = SLINGSHOT_FIRST_ORDER
       { speaker: "player", line: "「接下來就砸碎通路封鎖，奪回上架權。」" },
       { speaker: "player", line: "「康貝特200p，準備重見天日！」" },
     ];
+const PROLOGUE_NARRATION_LINES = [
+  "提神宇宙的暗黑時代。曾經的國民霸主康貝特，如今只剩一間苦撐的小廠。",
+  "紅牛搶通路，魔爪搶聲量。兩大霸主彼此競爭，卻都在把康貝特擠出市場。",
+  "最核心的終極配方，康貝特二百P，被封進了能量巨塔。",
+  "逆襲任務啟動。先擊碎通路高牆，再把康貝特二百P 救回來。",
+  "左右移動，跳躍，衝刺。準備好了，就把這場逆襲打回來。",
+  "康貝特，喝了再上。",
+];
+const PROLOGUE_STAGE_CARD_NARRATION = "第一階段，擊碎通路高牆。發射僅存的康貝特，奪回第一道上架破口。";
+const STAGE_TWO_OUTRO_NARRATION = {
+  impact: "命中弱點。通路高牆開始崩塌。",
+  smoke: "鐵罐像雪崩一樣垮下，整片封鎖正在瓦解。",
+  run: "廠長衝破鋁罐廢墟，直奔能量巨塔。",
+  tower: "抬頭看，康貝特二百P 就被封在塔頂的金色玻璃罩裡。",
+  climb: "一步一步，殺上塔頂。",
+  finale: "決戰，能量之巔。",
+};
+const ENDING_RESCUE_NARRATION = {
+  open: "能量巨塔金庫開了。康貝特二百P，終於重見天日。",
+  reunion: "接住這瓶本土靈魂，生產線準備重新轟鳴。",
+  finale: "紅牛與魔爪各自倒地。康貝特二百P，重新回到大家手上。",
+};
 const DEATH_AD_DURATION = 360;
 const DEATH_AD_SKIP_AT = 90;
 const AUDIO_MASTER_GAIN = 0.16;
 const AUDIO_REVERB_MIX = 0.14;
 const AUDIO_DELAY_TIME = 0.12;
 const AUDIO_DELAY_FEEDBACK = 0.25;
+const AUDIO_NARRATION_DUCK = 0.42;
 const COIN_TIME_BONUS = 1.05;
 
 const STAGE_ONE_DIFFICULTY = {
@@ -508,6 +532,8 @@ const input = {
 
 const audio = {
   enabled: true,
+  /** Web Speech 旁白（與 BGM/音效分開）；先關閉以免瀏覽器朗讀干擾。 */
+  narrationEnabled: false,
   context: null,
   master: null,
   musicGain: null,
@@ -515,6 +541,10 @@ const audio = {
   musicNextTime: 0,
   musicStep: 0,
   noiseBuffer: null,
+  narrationDuck: 1,
+  narrationVoices: [],
+  narrationVoiceHooked: false,
+  narrationToken: 0,
 };
 
 function loadImage(src) {
@@ -874,6 +904,9 @@ function startBackgroundMusic() {
 
 function unlockAudio() {
   const context = getAudioContext();
+  if (audio.narrationEnabled) {
+    primeNarrationVoices();
+  }
   if (!context) {
     return;
   }
@@ -884,6 +917,110 @@ function unlockAudio() {
     return;
   }
   startBackgroundMusic();
+}
+
+function getSpeechSynth() {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    return null;
+  }
+  return window.speechSynthesis;
+}
+
+function primeNarrationVoices() {
+  const synth = getSpeechSynth();
+  if (!synth) {
+    return [];
+  }
+  if (!audio.narrationVoiceHooked && synth.addEventListener) {
+    synth.addEventListener("voiceschanged", () => {
+      audio.narrationVoices = synth.getVoices() || [];
+    });
+    audio.narrationVoiceHooked = true;
+  }
+  audio.narrationVoices = synth.getVoices() || [];
+  return audio.narrationVoices;
+}
+
+function pickNarrationVoice(role = "narrator") {
+  const voices = audio.narrationVoices?.length ? audio.narrationVoices : primeNarrationVoices();
+  if (!voices || voices.length === 0) {
+    return null;
+  }
+  const preferredLang = voices.filter((voice) => {
+    const lang = String(voice.lang || "").toLowerCase();
+    return lang.includes("zh-tw") || lang.includes("zh-hk") || lang.includes("hant");
+  });
+  const fallbackLang = preferredLang.length > 0 ? preferredLang : voices.filter((voice) => String(voice.lang || "").toLowerCase().startsWith("zh"));
+  const pool = fallbackLang.length > 0 ? fallbackLang : voices;
+  const femaleHint = /mei|female|ting|hanna|huihui|hsiao|xiao|siri|婷婷|美|雅|女/i;
+  const maleHint = /male|bo|jun|kai|yunyang|tingting|sam|叔|哥|男/i;
+  if (role === "hero") {
+    return pool.find((voice) => maleHint.test(`${voice.name} ${voice.voiceURI}`)) || pool[0];
+  }
+  if (role === "villain") {
+    return pool.find((voice) => maleHint.test(`${voice.name} ${voice.voiceURI}`)) || pool[0];
+  }
+  return pool.find((voice) => femaleHint.test(`${voice.name} ${voice.voiceURI}`)) || pool[0];
+}
+
+function stopSubtitleNarration() {
+  const synth = getSpeechSynth();
+  audio.narrationToken += 1;
+  audio.narrationDuck = 1;
+  if (synth) {
+    try {
+      synth.cancel();
+    } catch (_) {}
+  }
+}
+
+function speakSubtitleNarration(
+  text,
+  {
+    role = "narrator",
+    rate = 0.93,
+    pitch = 1,
+    volume = 0.96,
+  } = {}
+) {
+  if (!audio.narrationEnabled) {
+    return;
+  }
+  const synth = getSpeechSynth();
+  if (!audio.enabled || !synth || !window.SpeechSynthesisUtterance || !text) {
+    return;
+  }
+  primeNarrationVoices();
+  const utter = new window.SpeechSynthesisUtterance(String(text).replace(/[「」]/g, ""));
+  const voice = pickNarrationVoice(role);
+  if (voice) {
+    utter.voice = voice;
+    utter.lang = voice.lang;
+  } else {
+    utter.lang = "zh-TW";
+  }
+  utter.rate = rate;
+  utter.pitch = pitch;
+  utter.volume = volume;
+  const token = audio.narrationToken + 1;
+  audio.narrationToken = token;
+  audio.narrationDuck = AUDIO_NARRATION_DUCK;
+  utter.onend = () => {
+    if (audio.narrationToken === token) {
+      audio.narrationDuck = 1;
+    }
+  };
+  utter.onerror = () => {
+    if (audio.narrationToken === token) {
+      audio.narrationDuck = 1;
+    }
+  };
+  try {
+    synth.cancel();
+    synth.speak(utter);
+  } catch (_) {
+    audio.narrationDuck = 1;
+  }
 }
 
 function scheduleTone({
@@ -1335,10 +1472,13 @@ function updateBackgroundMusic() {
       ? 0.2
       : game.state === "won" || game.state === "gameover"
         ? 0.12
-        : game.state === "intro" || game.state === "stage2Intro"
+        : game.state === "intro" ||
+          game.state === "prologueStageCard" ||
+          game.state === "stage2Intro"
           ? 0.16
           : 0.28;
-  const mixTarget = activeMusicLoop === bossMusicLoop ? Math.min(0.42, baseMix + 0.08) : baseMix;
+  const duck = audio.narrationDuck ?? 1;
+  const mixTarget = (activeMusicLoop === bossMusicLoop ? Math.min(0.42, baseMix + 0.08) : baseMix) * duck;
 
   audio.musicGain.gain.cancelScheduledValues(context.currentTime);
   audio.musicGain.gain.linearRampToValueAtTime(mixTarget, context.currentTime + 0.12);
@@ -1495,6 +1635,77 @@ const soundFx = {
     const t = audio.context ? audio.context.currentTime : 0;
     scheduleNoiseBurst({ startTime: t, duration: 0.08, volume: 0.04, highpass: 1200, lowpass: 9000 });
     scheduleTone({ freq: 880, endFreq: 320, startTime: t, duration: 0.1, volume: 0.07, type: "sawtooth", release: 0.08 });
+  },
+  cinematicWhoosh() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleNoiseBurst({ startTime: t, duration: 0.22, volume: 0.05, highpass: 700, lowpass: 7200, bus: audio.effectsBus });
+    scheduleToneWithEffects({ freq: 260, endFreq: 760, startTime: t, duration: 0.18, volume: 0.08, type: "sawtooth", reverb: 0.3, delay: 0.12, bus: audio.effectsBus });
+  },
+  cinematicSteal() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleToneWithEffects({ freq: 620, endFreq: 1180, startTime: t, duration: 0.16, volume: 0.07, type: "triangle", reverb: 0.55, delay: 0.18, bus: audio.effectsBus });
+    scheduleToneWithEffects({ freq: 1040, endFreq: 1720, startTime: t + 0.05, duration: 0.12, volume: 0.05, type: "triangle", reverb: 0.48, delay: 0.14, bus: audio.effectsBus });
+  },
+  cinematicLock() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleNoiseBurst({ startTime: t, duration: 0.16, volume: 0.05, highpass: 300, lowpass: 3200, bus: audio.effectsBus });
+    scheduleToneWithEffects({ freq: 172, endFreq: 62, startTime: t, duration: 0.28, volume: 0.1, type: "square", reverb: 0.22, delay: 0.1, bus: audio.effectsBus });
+    scheduleToneWithEffects({ freq: 1240, endFreq: 760, startTime: t + 0.03, duration: 0.08, volume: 0.045, type: "triangle", reverb: 0.3, bus: audio.effectsBus });
+  },
+  cinematicBoom() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleNoiseBurst({ startTime: t, duration: 0.42, volume: 0.09, highpass: 120, lowpass: 2200, bus: audio.effectsBus });
+    scheduleToneWithEffects({ freq: 118, endFreq: 34, startTime: t, duration: 0.48, volume: 0.14, type: "sawtooth", reverb: 0.28, delay: 0.16, bus: audio.effectsBus });
+    scheduleToneWithEffects({ freq: 56, endFreq: 24, startTime: t + 0.02, duration: 0.56, volume: 0.12, type: "triangle", reverb: 0.18, bus: audio.effectsBus });
+  },
+  cinematicHeroRun() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleNoiseBurst({ startTime: t, duration: 0.14, volume: 0.045, highpass: 1000, lowpass: 8400, bus: audio.effectsBus });
+    scheduleToneWithEffects({ freq: 820, endFreq: 240, startTime: t, duration: 0.12, volume: 0.075, type: "sawtooth", reverb: 0.26, delay: 0.12, bus: audio.effectsBus });
+  },
+  cinematicShatterRain() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleNoiseBurst({ startTime: t, duration: 0.22, volume: 0.05, highpass: 1800, lowpass: 8800, bus: audio.effectsBus });
+    scheduleNoiseBurst({ startTime: t + 0.05, duration: 0.28, volume: 0.04, highpass: 820, lowpass: 4400, bus: audio.effectsBus });
+    scheduleToneWithEffects({ freq: 1860, endFreq: 820, startTime: t, duration: 0.08, volume: 0.045, type: "triangle", reverb: 0.34, bus: audio.effectsBus });
+    scheduleToneWithEffects({ freq: 1320, endFreq: 560, startTime: t + 0.03, duration: 0.09, volume: 0.04, type: "triangle", reverb: 0.28, bus: audio.effectsBus });
+  },
+  cinematicFootstep() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleNoiseBurst({ startTime: t, duration: 0.04, volume: 0.018, highpass: 420, lowpass: 2400, bus: audio.effectsBus });
+    scheduleTone({ freq: 122, endFreq: 66, startTime: t, duration: 0.06, volume: 0.036, type: "triangle", attack: 0.003, release: 0.04, bus: audio.effectsBus });
+    scheduleTone({ freq: 420, endFreq: 230, startTime: t + 0.01, duration: 0.03, volume: 0.012, type: "square", attack: 0.002, release: 0.02, bus: audio.effectsBus });
+  },
+  cinematicClimbStep() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleToneWithEffects({ freq: 860, endFreq: 1240, startTime: t, duration: 0.045, volume: 0.032, type: "triangle", reverb: 0.22, bus: audio.effectsBus });
+    scheduleTone({ freq: 210, endFreq: 132, startTime: t + 0.01, duration: 0.05, volume: 0.024, type: "square", attack: 0.002, release: 0.03, bus: audio.effectsBus });
+  },
+  cinematicBreath() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleNoiseBurst({ startTime: t, duration: 0.12, volume: 0.018, highpass: 500, lowpass: 1800, bus: audio.effectsBus });
+    scheduleTone({ freq: 320, endFreq: 220, startTime: t + 0.02, duration: 0.08, volume: 0.014, type: "triangle", attack: 0.01, release: 0.06, bus: audio.effectsBus });
+  },
+  cinematicTowerRise() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleToneWithEffects({ freq: 392, endFreq: 880, startTime: t, duration: 0.24, volume: 0.07, type: "triangle", reverb: 0.6, delay: 0.22, bus: audio.effectsBus });
+    scheduleToneWithEffects({ freq: 523, endFreq: 1174, startTime: t + 0.06, duration: 0.26, volume: 0.06, type: "triangle", reverb: 0.64, delay: 0.24, bus: audio.effectsBus });
+  },
+  cinematicTitleHit() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleToneWithEffects({ freq: 164, endFreq: 58, startTime: t, duration: 0.22, volume: 0.095, type: "sawtooth", reverb: 0.2, delay: 0.08, bus: audio.effectsBus });
+    scheduleNoiseBurst({ startTime: t + 0.01, duration: 0.08, volume: 0.03, highpass: 160, lowpass: 2200, bus: audio.effectsBus });
+  },
+  cinematicSparkle() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleToneWithEffects({ freq: 980, endFreq: 1560, startTime: t, duration: 0.08, volume: 0.04, type: "triangle", reverb: 0.42, delay: 0.16, bus: audio.effectsBus });
+    scheduleToneWithEffects({ freq: 1560, endFreq: 2340, startTime: t + 0.04, duration: 0.08, volume: 0.032, type: "triangle", reverb: 0.5, delay: 0.18, bus: audio.effectsBus });
+  },
+  cinematicResolve() {
+    const t = audio.context ? audio.context.currentTime : 0;
+    scheduleNoteStack([60, 64, 67], { startTime: t, duration: 0.28, volume: 0.085, type: "triangle", attack: 0.01, release: 0.18, bus: audio.effectsBus });
+    scheduleNoteStack([67, 72, 76], { startTime: t + 0.16, duration: 0.36, volume: 0.08, type: "triangle", attack: 0.01, release: 0.24, bus: audio.effectsBus });
+    scheduleNoiseBurst({ startTime: t + 0.02, duration: 0.12, volume: 0.018, highpass: 2800, lowpass: 9800, bus: audio.effectsBus });
   },
 };
 
@@ -1910,6 +2121,8 @@ const game = {
   winFx: null,
   finalVictoryVideo: null,
   prologueTimer: 0,
+  prologueStageCardTimer: 0,
+  prologueCueState: null,
   stageTwoClearedAt: null,
   stageTwoClearedFrames: 0,
   stageTwoClearHandled: false,
@@ -1951,9 +2164,14 @@ const game = {
   endingScene: null,
 };
 
-const STAGE_TWO_OUTRO_TOTAL_FRAMES = 1060;
+// Long cinematic outro after Stage 2 clear (~23s @ 60fps).
+const STAGE_TWO_OUTRO_TOTAL_FRAMES = 1400;
+const STAGE_TWO_OUTRO_IMPACT_SHOT_END = 236;
+const STAGE_TWO_OUTRO_RUN_SHOT_START = 336;
+const STAGE_TWO_OUTRO_RUN_SHOT_END = 566;
 
 function startStageTwoToBossCutscene(stageTwo) {
+  stopSubtitleNarration();
   const projectileBody = stageTwo?.projectile?.body;
   const impactX =
     stageTwo?.lastImpactX ??
@@ -1976,6 +2194,15 @@ function startStageTwoToBossCutscene(stageTwo) {
     aftershockPlayed: false,
     rushPlayed: false,
     towerRevealPlayed: false,
+    smokeNarrated: false,
+    runNarrated: false,
+    towerNarrated: false,
+    climbNarrated: false,
+    finaleNarrated: false,
+    smokeRattlePlayed: false,
+    finalHitPlayed: false,
+    runStepTimer: 0,
+    climbStepTimer: 0,
     slowmo: 0,
   };
   game.state = "stage2Outro";
@@ -1985,11 +2212,13 @@ function startStageTwoToBossCutscene(stageTwo) {
 
 function finishStageTwoToBossCutscene() {
   if (game.state !== "stage2Outro") return;
+  stopSubtitleNarration();
   game.stageTwoOutro = null;
   enterBossStageFromSlingshot();
 }
 
 function enterWonResults() {
+  stopSubtitleNarration();
   if (game.stageTwo) {
     game.stage = 2;
   }
@@ -2011,10 +2240,10 @@ const SCENE_TR_BOSS_TO_STAGE2 = {
   captionSub: "擊碎通路高牆",
 };
 const SCENE_TR_SLINGSHOT_TO_BOSS = {
-  // ~13.7s @ 60fps (used as the long storyboard bridge to the tower).
-  outFrames: 200,
-  holdFrames: 420,
-  inFrames: 200,
+  // ~25s @ 60fps (long storyboard bridge to the tower).
+  outFrames: 300,
+  holdFrames: 900,
+  inFrames: 300,
   caption: "殺出一條血路",
   captionSub: "仰望能量巨塔 → 登頂救出200p",
   variant: "tower",
@@ -2125,19 +2354,44 @@ function drawTransitionCan(image, x, y, h, rotation = 0, fallback = "#ef2a3e") {
   ctx.restore();
 }
 
+function drawTowerHeroCutout(x, y, h = 52, rotation = 0, alpha = 1, scale = 1) {
+  const image = canDrawImage(art.player) ? art.player : canDrawImage(art.face) ? art.face : null;
+  if (!image) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "#f4cfaa";
+    roundRect(x - h * 0.26, y - h * 0.82, h * 0.52, h * 0.64, 12);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
+  const ratio = image.naturalWidth / image.naturalHeight;
+  const drawH = h * scale;
+  const drawW = drawH * ratio;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.shadowColor = "rgba(0,0,0,0.24)";
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 5;
+  if (image === art.player) {
+    ctx.drawImage(image, -drawW / 2, -drawH * 0.92, drawW, drawH);
+  } else {
+    ctx.drawImage(image, -drawW / 2, -drawH * 0.84, drawW, drawH);
+  }
+  ctx.restore();
+}
+
 function drawTowerSceneTransition(tr, alpha) {
   const p = getTransitionVisualProgress(tr);
   const showPant = tr?.showPant !== false;
   const open = easeOutCubic(clamp((p - 0.12) / 0.44, 0, 1));
   const towerGlow = clamp((p - 0.44) / 0.42, 0, 1);
-  // Beat 3: hero at the base, then a fast pan-up to reveal the glowing dome/cage.
-  const panUp = easeOutCubic(clamp((p - 0.08) / 0.22, 0, 1));
-  const panYOffset = -220 + panUp * 260; // from base view (up) → top view (down)
-  const panSpeed = clamp((p - 0.09) / 0.12, 0, 1) * clamp((0.26 - p) / 0.12, 0, 1);
 
   ctx.save();
   ctx.globalAlpha = alpha * 0.92;
-  ctx.translate(0, panYOffset);
 
   // Cinematic sky + atmosphere (no gameplay bleed-through).
   const sky = ctx.createLinearGradient(0, -120, 0, 620);
@@ -2399,40 +2653,26 @@ function drawTowerSceneTransition(tr, alpha) {
   }
   ctx.restore();
 
-  const climbStart = 0.3;
-  const climbDuration = 0.62;
+  const climbStart = 0.42;
+  const climbDuration = 0.38;
   const climbProgress = clamp((p - climbStart) / climbDuration, 0, 1);
   const climb = easeInOutCubic(climbProgress);
 
-  // Beat 3: hero stands at the base and looks up.
-  const baseHold = clamp((0.24 - p) / 0.24, 0, 1) * clamp((climbStart - p) / 0.05, 0, 1);
+  // Beat 3: hero stands at the base and looks up for longer before climbing.
+  const baseHold = clamp((0.35 - p) / 0.35, 0, 1) * clamp((climbStart - p) / 0.07, 0, 1);
   if (baseHold > 0.001) {
     const x = towerX - 112;
-    const y = towerY + towerH - 36 + Math.sin(p * 8) * 2;
-    const r = 18;
+    const y = towerY + towerH - 12 + Math.sin(p * 8) * 1.4;
+    const lookTilt = -0.18 - baseHold * 0.28 + Math.sin(p * 7.4) * 0.02;
     ctx.save();
-    ctx.globalAlpha = 0.45 + baseHold * 0.55;
-    ctx.shadowColor = "rgba(0,0,0,0.25)";
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 4;
+    ctx.globalAlpha = 0.18 + baseHold * 0.14;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.9)";
     ctx.beginPath();
-    ctx.arc(x, y, r + 2, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
+    ctx.ellipse(x - 2, y - 2, 22, 8, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    ctx.save();
-    ctx.globalAlpha = 0.55 + baseHold * 0.45;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.clip();
-    if (!drawCoverImage(art.player, x - r, y - r, r * 2, r * 2, 0, 1.12, 0, 0)) {
-      if (!drawCoverImage(art.face, x - r, y - r, r * 2, r * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
-        ctx.fillStyle = "#f4cfaa";
-        ctx.fillRect(x - r, y - r, r * 2, r * 2);
-      }
-    }
-    ctx.restore();
+    drawTowerHeroCutout(x, y, 52, lookTilt, 0.64 + baseHold * 0.36, 1.02);
 
     ctx.save();
     ctx.globalAlpha = 0.55 * baseHold;
@@ -2448,7 +2688,7 @@ function drawTowerSceneTransition(tr, alpha) {
     ctx.restore();
   }
 
-  // Beat 4: hero head climbing the tower (slower, more deliberate ascent).
+  // Beat 4: hero head climbing the tower (later start, but climbs more decisively).
   let heroX = null;
   let heroY = null;
   if (climb > 0.001) {
@@ -2457,30 +2697,12 @@ function drawTowerSceneTransition(tr, alpha) {
     const fromX = towerX - 28;
     const toX = towerRight - 18;
     const x = fromX + (toX - fromX) * (0.25 + climb * 0.75);
-    const y = (towerY + towerH - 36) - (towerH - 120) * climb + bob;
-    const r = 18;
+    const y = (towerY + towerH - 14) - (towerH - 126) * climb + bob;
+    const climbTilt = -0.12 + Math.sin(p * Math.PI * 7.5) * 0.035;
     heroX = x;
     heroY = y;
 
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.25)";
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 4;
-    ctx.beginPath();
-    ctx.arc(x, y, r + 2, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.clip();
-    if (!drawCoverImage(art.player, x - r, y - r, r * 2, r * 2, 0, 1.12, 0, 0)) {
-      if (!drawCoverImage(art.face, x - r, y - r, r * 2, r * 2, -Math.PI / 2, 1.45, 0.07, -0.03)) {
-        ctx.fillStyle = "#f4cfaa";
-        ctx.fillRect(x - r, y - r, r * 2, r * 2);
-      }
-    }
-    ctx.restore();
+    drawTowerHeroCutout(x, y, 46, climbTilt, 0.98, 0.96);
 
     // Tiny “handhold” ticks on the tower edge for clarity.
     ctx.save();
@@ -2531,6 +2753,7 @@ function drawTowerSceneTransition(tr, alpha) {
 
   // Cage glow bed (warm) behind bars.
   ctx.save();
+  const glowBreath = 0.82 + 0.18 * Math.sin(p * Math.PI * 6.0);
   const cageGlow = ctx.createRadialGradient(
     cageCX,
     cageCY,
@@ -2539,8 +2762,8 @@ function drawTowerSceneTransition(tr, alpha) {
     cageCY,
     140
   );
-  cageGlow.addColorStop(0, `rgba(255, 216, 102, ${0.18 + towerGlow * 0.22})`);
-  cageGlow.addColorStop(0.55, `rgba(255, 216, 102, ${0.05 + towerGlow * 0.10})`);
+  cageGlow.addColorStop(0, `rgba(255, 216, 102, ${(0.18 + towerGlow * 0.22) * glowBreath})`);
+  cageGlow.addColorStop(0.55, `rgba(255, 216, 102, ${(0.05 + towerGlow * 0.10) * glowBreath})`);
   cageGlow.addColorStop(1, "rgba(255, 216, 102, 0)");
   ctx.fillStyle = cageGlow;
   ctx.beginPath();
@@ -2565,6 +2788,34 @@ function drawTowerSceneTransition(tr, alpha) {
     ctx.fill();
     ctx.restore();
   }
+
+  // Extra glass depth: inner refraction slab + edge tint (reads like thickness).
+  ctx.save();
+  ctx.globalAlpha = 0.18 + towerGlow * 0.12;
+  const depthGrad = ctx.createLinearGradient(cageX, cageY, cageX + cageW, cageY);
+  depthGrad.addColorStop(0, "rgba(90, 180, 255, 0.10)");
+  depthGrad.addColorStop(0.35, "rgba(255, 252, 245, 0.06)");
+  depthGrad.addColorStop(0.7, "rgba(255, 216, 102, 0.08)");
+  depthGrad.addColorStop(1, "rgba(90, 180, 255, 0.05)");
+  ctx.fillStyle = depthGrad;
+  roundRect(cageX + 6, cageY + 8, cageW - 12, cageH - 16, 14);
+  ctx.fill();
+  // Subtle condensation / micro haze on glass (adds realism).
+  ctx.globalAlpha = (0.06 + towerGlow * 0.06) * (0.7 + 0.3 * Math.sin(p * 9.2));
+  ctx.fillStyle = "rgba(255, 252, 245, 1)";
+  for (let i = 0; i < 10; i += 1) {
+    const gx = cageX + 10 + ((i * 19) % (cageW - 20));
+    const gy = cageY + 14 + ((i * 37) % (cageH - 28));
+    ctx.beginPath();
+    ctx.ellipse(gx, gy, 10 + (i % 3) * 6, 4 + (i % 2) * 2, (i % 5) * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 0.25 + towerGlow * 0.18;
+  ctx.strokeStyle = "rgba(180, 220, 255, 0.22)";
+  ctx.lineWidth = 2;
+  roundRect(cageX + 3, cageY + 4, cageW - 6, cageH - 8, 15);
+  ctx.stroke();
+  ctx.restore();
 
   // Glass panel (subtle refraction).
   ctx.save();
@@ -2643,6 +2894,31 @@ function drawTowerSceneTransition(tr, alpha) {
   roundRect(cageX, cageY, cageW, cageH, 16);
   ctx.fill();
   ctx.restore();
+
+  // Tiny sparkle motes on the glass (premium “sealed aura”).
+  const sparkle = clamp((p - 0.14) / 0.18, 0, 1) * (0.4 + towerGlow * 0.6);
+  if (sparkle > 0.001) {
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    for (let i = 0; i < 18; i += 1) {
+      const seed = i * 97;
+      const sx = cageX + 10 + ((seed * 13) % (cageW - 20));
+      const sy = cageY + 16 + ((seed * 29) % (cageH - 28));
+      const tw = 0.5 + 0.5 * Math.sin(p * 18 + i * 1.7);
+      const a = (0.06 + tw * 0.12) * sparkle;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = "rgba(255, 252, 245, 1)";
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1.2 + tw * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = a * 0.6;
+      ctx.fillStyle = "rgba(255, 216, 102, 1)";
+      ctx.beginPath();
+      ctx.arc(sx + 1.5, sy - 1.2, 1 + tw * 1.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 
   // Glass streak highlight (animated sweep for polish).
   const sweep = clamp((p - 0.18) / 0.5, 0, 1);
@@ -2806,6 +3082,56 @@ function drawTowerSceneTransition(tr, alpha) {
   ctx.fill();
   ctx.restore();
 
+  // Bar shadows + caustics inside the cage (adds real “being locked in” depth).
+  ctx.save();
+  ctx.beginPath();
+  roundRect(cageX + 4, cageY + 6, cageW - 8, cageH - 12, 12);
+  ctx.clip();
+
+  // Bar shadows (slightly offset, multiply-like darkness).
+  ctx.globalAlpha = 0.18 + towerGlow * 0.10;
+  ctx.fillStyle = "rgba(0, 0, 0, 0.9)";
+  for (let i = 0; i < 5; i += 1) {
+    const bx = cageX + 16 + i * 15 + 6;
+    roundRect(bx, cageY + 14, 4.5, cageH - 28, 4);
+    ctx.fill();
+  }
+
+  // Stronger bar shadow on the can area (sells the lock-in).
+  ctx.globalAlpha = 0.12 + towerGlow * 0.08;
+  ctx.fillStyle = "rgba(0, 0, 0, 1)";
+  for (let i = 0; i < 5; i += 1) {
+    const bx = cageX + 16 + i * 15 + 6;
+    ctx.beginPath();
+    ctx.ellipse(bx + 2, cageY + 92, 8, 26, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Caustic sweep bands (glass refraction feel).
+  ctx.globalCompositeOperation = "screen";
+  const ca = (0.06 + towerGlow * 0.08) * domeReveal;
+  ctx.globalAlpha = ca;
+  const bandX = cageX - 40 + ((p * 220) % (cageW + 80));
+  ctx.fillStyle = "rgba(180, 220, 255, 1)";
+  ctx.beginPath();
+  ctx.moveTo(bandX, cageY - 20);
+  ctx.lineTo(bandX + 34, cageY - 20);
+  ctx.lineTo(bandX - 6, cageY + cageH + 20);
+  ctx.lineTo(bandX - 40, cageY + cageH + 20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = ca * 0.7;
+  ctx.fillStyle = "rgba(255, 216, 102, 1)";
+  ctx.beginPath();
+  ctx.moveTo(bandX + 22, cageY - 20);
+  ctx.lineTo(bandX + 46, cageY - 20);
+  ctx.lineTo(bandX + 4, cageY + cageH + 20);
+  ctx.lineTo(bandX - 20, cageY + cageH + 20);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+
   // Lens flare hints around the golden cage glow (very subtle, premium feel).
   const flare = clamp((p - 0.16) / 0.18, 0, 1) * (0.25 + towerGlow * 0.75);
   if (flare > 0.001) {
@@ -2823,23 +3149,6 @@ function drawTowerSceneTransition(tr, alpha) {
     ctx.moveTo(fx, fy - 90);
     ctx.lineTo(fx, fy + 90);
     ctx.stroke();
-    ctx.restore();
-  }
-
-  // Pan-up motion lines (cinematic camera feel; only during fast pan window).
-  if (panSpeed > 0.001) {
-    ctx.save();
-    ctx.globalAlpha = 0.22 * panSpeed;
-    ctx.strokeStyle = "rgba(255, 252, 245, 0.5)";
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 14; i += 1) {
-      const x = 40 + i * 68 + ((i % 3) - 1) * 8;
-      const y = -40 + ((i * 97) % 520);
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x, y + 70 + (i % 4) * 16);
-      ctx.stroke();
-    }
     ctx.restore();
   }
 
@@ -3778,8 +4087,8 @@ function enterBossStageFromSlingshot() {
   game.stomps = 0;
   game.timeBoostEarned = 0;
   game.stageOneRating = 0;
-  game.overlayTimer = 118;
-  game.overlayText = `${hudBossStageName()}：決戰！能量之巔`;
+  game.overlayTimer = 74;
+  game.overlayText = "登上塔頂，準備開戰";
   game.bossWarningShown = false;
   game.bossShockwaveHintShown = false;
   game.bossCutscene = null;
@@ -3819,8 +4128,14 @@ function updateStageTwo(frameScale) {
     if (!outro.impactPlayed) {
       outro.impactPlayed = true;
       soundFx.glassHit?.();
+      soundFx.cinematicBoom?.();
       triggerStageTwoShake(8);
       spawnStageTwoFlash(outro.impactX, outro.impactY, 42);
+      speakSubtitleNarration(STAGE_TWO_OUTRO_NARRATION.impact, {
+        role: "narrator",
+        rate: 0.9,
+        pitch: 1.02,
+      });
       for (let i = 0; i < 22; i += 1) {
         spawnStageTwoDebris(outro.impactX, outro.impactY, "#cfd6de", 1, {
           speed: 3 + Math.random() * 6,
@@ -3845,6 +4160,7 @@ function updateStageTwo(frameScale) {
     if (t >= 18 && !outro.collapsePlayed) {
       outro.collapsePlayed = true;
       soundFx.canCollapse?.();
+      soundFx.cinematicShatterRain?.();
       triggerStageTwoShake(6);
       for (let i = 0; i < 24; i += 1) {
         spawnStageTwoDebris(outro.impactX, outro.impactY, "#9aa6bd", 1, {
@@ -3872,29 +4188,85 @@ function updateStageTwo(frameScale) {
       }
     }
 
+    if (t >= STAGE_TWO_OUTRO_IMPACT_SHOT_END + 12 && !outro.smokeNarrated) {
+      outro.smokeNarrated = true;
+      speakSubtitleNarration(STAGE_TWO_OUTRO_NARRATION.smoke, {
+        role: "narrator",
+        rate: 0.88,
+        pitch: 1.01,
+      });
+    }
+
+    if (t >= STAGE_TWO_OUTRO_IMPACT_SHOT_END + 26 && !outro.smokeRattlePlayed) {
+      outro.smokeRattlePlayed = true;
+      soundFx.cinematicShatterRain?.();
+    }
+
     if (t >= 198 && !outro.rushPlayed) {
       outro.rushPlayed = true;
       soundFx.dash?.();
+      soundFx.cinematicHeroRun?.();
+    }
+
+    if (t >= STAGE_TWO_OUTRO_RUN_SHOT_START && !outro.runNarrated) {
+      outro.runNarrated = true;
+      speakSubtitleNarration(STAGE_TWO_OUTRO_NARRATION.run, {
+        role: "hero",
+        rate: 0.96,
+        pitch: 0.97,
+      });
     }
 
     if (t >= 418 && !outro.towerRevealPlayed) {
       outro.towerRevealPlayed = true;
       soundFx.bonusPickup?.();
+      soundFx.cinematicTowerRise?.();
     }
 
-    // Slow-motion curve: precise impact freeze -> avalanche collapse -> camera regains speed.
+    if (t >= STAGE_TWO_OUTRO_RUN_SHOT_END + 70 && !outro.towerNarrated) {
+      outro.towerNarrated = true;
+      speakSubtitleNarration(STAGE_TWO_OUTRO_NARRATION.tower, {
+        role: "narrator",
+        rate: 0.89,
+        pitch: 1.03,
+      });
+    }
+
+    if (t >= STAGE_TWO_OUTRO_RUN_SHOT_END + 318 && !outro.climbNarrated) {
+      outro.climbNarrated = true;
+      soundFx.cinematicBreath?.();
+      speakSubtitleNarration(STAGE_TWO_OUTRO_NARRATION.climb, {
+        role: "hero",
+        rate: 0.94,
+        pitch: 0.97,
+      });
+    }
+
+    if (t >= STAGE_TWO_OUTRO_TOTAL_FRAMES - 168 && !outro.finaleNarrated) {
+      outro.finaleNarrated = true;
+      soundFx.cinematicResolve?.();
+      speakSubtitleNarration(STAGE_TWO_OUTRO_NARRATION.finale, {
+        role: "narrator",
+        rate: 0.88,
+        pitch: 1.02,
+      });
+    }
+
+    // Slow-motion curve: keep it slow for longer (cinematic).
     const slowmo =
-      t < 90
-        ? 0.08
-        : t < 220
-          ? 0.12
-          : t < 380
-            ? 0.22
-            : t < 580
-              ? 0.38
-              : t < 780
-                ? 0.56
-                : 0.78;
+      t < 120
+        ? 0.07
+        : t < 320
+          ? 0.11
+          : t < 620
+            ? 0.18
+            : t < 920
+              ? 0.28
+              : t < 1180
+                ? 0.42
+                : t < 1320
+                  ? 0.55
+                  : 0.68;
     outro.slowmo = slowmo;
     if (stageTwo.physics) {
       stageTwo.physics.step(frameScale * slowmo * (1000 / 60));
@@ -3937,7 +4309,7 @@ function updateStageTwo(frameScale) {
     }
 
     // Continuous debris during collapse phase
-    if (t < 340 && Math.random() < 0.62) {
+    if (t < 620 && Math.random() < 0.62) {
       const x = outro.impactX + (Math.random() - 0.5) * 200;
       const y = outro.impactY + (Math.random() - 0.5) * 110;
       spawnStageTwoDebris(x, y, "rgba(210, 218, 230, 0.9)", 1, {
@@ -3949,11 +4321,33 @@ function updateStageTwo(frameScale) {
       });
     }
 
+    if (t >= STAGE_TWO_OUTRO_RUN_SHOT_START && t < STAGE_TWO_OUTRO_RUN_SHOT_END) {
+      outro.runStepTimer -= frameScale;
+      if (outro.runStepTimer <= 0) {
+        soundFx.cinematicFootstep?.();
+        outro.runStepTimer = 16;
+      }
+    }
+
+    const climbAudioStart = STAGE_TWO_OUTRO_RUN_SHOT_END + 286;
+    const climbAudioEnd = STAGE_TWO_OUTRO_TOTAL_FRAMES - 220;
+    if (t >= climbAudioStart && t < climbAudioEnd) {
+      outro.climbStepTimer -= frameScale;
+      if (outro.climbStepTimer <= 0) {
+        soundFx.cinematicClimbStep?.();
+        outro.climbStepTimer = 22;
+      }
+    }
+
+    if (t >= STAGE_TWO_OUTRO_TOTAL_FRAMES - 180 && !outro.finalHitPlayed) {
+      outro.finalHitPlayed = true;
+      soundFx.cinematicTitleHit?.();
+    }
+
     updateStageTwoFx(frameScale);
 
     if (t >= STAGE_TWO_OUTRO_TOTAL_FRAMES) {
-      game.stageTwoOutro = null;
-      enterBossStageFromSlingshot();
+      finishStageTwoToBossCutscene();
     }
     return;
   }
@@ -4137,6 +4531,7 @@ function getStageTwoPullRatio() {
 }
 
 function startEndingRescueScene() {
+  stopSubtitleNarration();
   game.endingScene = {
     timer: 0,
     playerStartX: -88,
@@ -4144,19 +4539,26 @@ function startEndingRescueScene() {
     canPedestalX: 744,
     canTargetX: 472,
     groundY: 410,
+    openCuePlayed: false,
+    reunionCuePlayed: false,
+    finaleCuePlayed: false,
+    walkStepTimer: 8,
   };
   game.state = "ending";
   game.overlayTimer = 0;
   game.overlayText = "";
   soundFx.win();
+  soundFx.cinematicTitleHit();
 }
 
 function finishEndingRescueScene() {
+  stopSubtitleNarration();
   game.endingScene = null;
   startFinalVictoryVideo();
 }
 
 function startFinalVictoryVideo() {
+  stopSubtitleNarration();
   if (!cutsceneVideo || !cutsceneVideoOverlay) {
     enterWonResults();
     return;
@@ -4180,6 +4582,7 @@ function startFinalVictoryVideo() {
 
 function finishFinalVictoryVideo() {
   if (!game.finalVictoryVideo?.active) return;
+  stopSubtitleNarration();
   game.finalVictoryVideo = null;
   resetCutsceneVideoUi();
   enterWonResults();
@@ -4326,26 +4729,92 @@ function updateEndingRescueScene(frameScale) {
     return;
   }
   game.endingScene.timer += frameScale;
+  const ending = game.endingScene;
+  if (ending.timer < ENDING_RESCUE_WALK_FRAMES) {
+    ending.walkStepTimer -= frameScale;
+    if (ending.walkStepTimer <= 0) {
+      soundFx.cinematicFootstep();
+      ending.walkStepTimer = 15;
+    }
+  }
+  if (!ending.openCuePlayed) {
+    ending.openCuePlayed = true;
+    soundFx.cinematicResolve();
+    speakSubtitleNarration(ENDING_RESCUE_NARRATION.open, { role: "narrator", rate: 0.9, pitch: 1.02 });
+  }
+  if (ending.timer >= ENDING_RESCUE_REUNION_START && !ending.reunionCuePlayed) {
+    ending.reunionCuePlayed = true;
+    soundFx.cinematicSteal();
+    soundFx.cinematicSparkle();
+    speakSubtitleNarration(ENDING_RESCUE_NARRATION.reunion, { role: "hero", rate: 0.94, pitch: 0.98 });
+  }
+  if (
+    ending.timer >= ENDING_RESCUE_REUNION_START + ENDING_RESCUE_REUNION_FRAMES + 24 &&
+    !ending.finaleCuePlayed
+  ) {
+    ending.finaleCuePlayed = true;
+    soundFx.win();
+    soundFx.cinematicTitleHit();
+    speakSubtitleNarration(ENDING_RESCUE_NARRATION.finale, { role: "narrator", rate: 0.91, pitch: 1.02 });
+  }
   if (game.endingScene.timer >= ENDING_RESCUE_TOTAL_FRAMES) {
     startSceneTransition(() => finishEndingRescueScene(), SCENE_TR_ENDING_TO_FINAL);
   }
+}
+
+function getPrologueCaptionIndex(t) {
+  if (t < 0.18) return 0;
+  if (t < 0.38) return 1;
+  if (t < 0.58) return 2;
+  if (t < 0.74) return 3;
+  if (t < 0.88) return 4;
+  return 5;
 }
 
 function startStageOneRun() {
   if (game.state !== "intro") {
     return;
   }
+  stopSubtitleNarration();
   game.state = "prologue";
   game.prologueTimer = 0;
+  game.prologueStageCardTimer = 0;
+  game.prologueCueState = {
+    captionIndex: -1,
+    rushPlayed: false,
+    rumblePlayed: false,
+    stealPlayed: false,
+    lockPlayed: false,
+    finalePlayed: false,
+  };
   game.overlayTimer = 0;
   game.overlayText = "";
   soundFx.start();
+  soundFx.cinematicTitleHit();
+  soundFx.cinematicResolve();
 }
 
-function finishPrologueIntro() {
+function startPrologueStageCard() {
   if (game.state !== "prologue") {
     return;
   }
+  stopSubtitleNarration();
+  game.state = "prologueStageCard";
+  game.prologueStageCardTimer = 0;
+  game.overlayTimer = 0;
+  game.overlayText = "";
+  soundFx.start();
+  soundFx.cinematicTitleHit();
+  soundFx.cinematicTowerRise();
+  speakSubtitleNarration(PROLOGUE_STAGE_CARD_NARRATION, { role: "narrator", rate: 0.88, pitch: 1.02 });
+}
+
+function finishPrologueStageCard() {
+  if (game.state !== "prologueStageCard") {
+    return;
+  }
+  stopSubtitleNarration();
+  game.prologueStageCardTimer = 0;
   if (SLINGSHOT_FIRST_ORDER) {
     enterStageTwo();
     game.overlayTimer = 118;
@@ -4359,13 +4828,69 @@ function finishPrologueIntro() {
   soundFx.start();
 }
 
+function finishPrologueIntro() {
+  if (game.state !== "prologue") {
+    return;
+  }
+  startPrologueStageCard();
+}
+
 function updatePrologueIntro(frameScale) {
   if (game.state !== "prologue") {
     return;
   }
   game.prologueTimer += frameScale;
+  const t = clamp(game.prologueTimer / PROLOGUE_TOTAL_FRAMES, 0, 1);
+  const cues = game.prologueCueState || {
+    captionIndex: -1,
+    rushPlayed: false,
+    rumblePlayed: false,
+    stealPlayed: false,
+    lockPlayed: false,
+    finalePlayed: false,
+  };
+  game.prologueCueState = cues;
+  const captionIndex = getPrologueCaptionIndex(t);
+  if (captionIndex !== cues.captionIndex) {
+    cues.captionIndex = captionIndex;
+    speakSubtitleNarration(PROLOGUE_NARRATION_LINES[captionIndex], {
+      role: captionIndex >= 4 ? "hero" : "narrator",
+      rate: captionIndex >= 4 ? 0.98 : 0.91,
+      pitch: captionIndex >= 4 ? 0.98 : 1.03,
+    });
+  }
+  if (t >= 0.18 && !cues.rushPlayed) {
+    cues.rushPlayed = true;
+    soundFx.cinematicWhoosh();
+  }
+  if (t >= 0.34 && !cues.rumblePlayed) {
+    cues.rumblePlayed = true;
+    soundFx.cinematicBoom();
+  }
+  if (t >= 0.52 && !cues.stealPlayed) {
+    cues.stealPlayed = true;
+    soundFx.cinematicSteal();
+  }
+  if (t >= 0.74 && !cues.lockPlayed) {
+    cues.lockPlayed = true;
+    soundFx.cinematicLock();
+  }
+  if (t >= 0.86 && !cues.finalePlayed) {
+    cues.finalePlayed = true;
+    soundFx.cinematicTowerRise();
+  }
   if (game.prologueTimer >= PROLOGUE_TOTAL_FRAMES) {
     finishPrologueIntro();
+  }
+}
+
+function updatePrologueStageCard(frameScale) {
+  if (game.state !== "prologueStageCard") {
+    return;
+  }
+  game.prologueStageCardTimer += frameScale;
+  if (game.prologueStageCardTimer >= PROLOGUE_STAGE_CARD_FRAMES) {
+    finishPrologueStageCard();
   }
 }
 
@@ -4385,6 +4910,9 @@ function canSkipDeathAd() {
 
 function toggleAudioEnabled() {
   audio.enabled = !audio.enabled;
+  if (!audio.enabled) {
+    stopSubtitleNarration();
+  }
   if (audio.context && audio.master) {
     audio.master.gain.setValueAtTime(
       audio.enabled ? AUDIO_MASTER_GAIN : 0.0001,

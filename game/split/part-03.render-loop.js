@@ -1202,7 +1202,7 @@ function drawStageTwoScene() {
   // Cinematic camera for the explosion slow-motion close-up.
   if (game.state === "stage2Outro" && game.stageTwoOutro) {
     const t = game.stageTwoOutro.timer || 0;
-    const closeupEnd = 236;
+    const closeupEnd = STAGE_TWO_OUTRO_IMPACT_SHOT_END;
     if (t < closeupEnd) {
       const focusIn = easeOutCubic(clamp(t / 18, 0, 1));
       const focus = focusIn;
@@ -1245,12 +1245,21 @@ function drawStageTwoScene() {
   ctx.closePath();
   ctx.fill();
 
-  drawStageTwoBlocks(stageTwo);
-  drawStageTwoTargets(stageTwo);
-  drawStageTwoFx();
-  drawStageTwoSling(stageTwo);
-  drawStageTwoProjectile(stageTwo);
-  drawStageTwoTrajectory(stageTwo);
+  const outroTimer =
+    game.state === "stage2Outro" && game.stageTwoOutro
+      ? game.stageTwoOutro.timer || 0
+      : null;
+  const showStageTwoGameplay =
+    outroTimer == null || outroTimer < STAGE_TWO_OUTRO_IMPACT_SHOT_END;
+
+  if (showStageTwoGameplay) {
+    drawStageTwoBlocks(stageTwo);
+    drawStageTwoTargets(stageTwo);
+    drawStageTwoFx();
+    drawStageTwoSling(stageTwo);
+    drawStageTwoProjectile(stageTwo);
+    drawStageTwoTrajectory(stageTwo);
+  }
 
   ctx.restore();
 
@@ -1310,6 +1319,223 @@ function drawStageTwoOutroHeroHead(x, y, r = 18, alpha = 1, rotation = 0, stretc
   ctx.restore();
 }
 
+function drawStageTwoOutroShard(
+  x,
+  y,
+  w,
+  h,
+  angle,
+  fill = "rgba(255, 250, 240, 0.9)",
+  alpha = 1,
+  stroke = "rgba(17, 24, 39, 0.28)"
+) {
+  if (alpha <= 0.001 || w <= 0 || h <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = fill;
+  roundRect(-w / 2, -h / 2, w, h, Math.min(w, h) * 0.28);
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawStageTwoOutroImpactSpectacle(impactX, impactY, groundY, t) {
+  const build = easeOutCubic(clamp((t + 8) / 26, 0, 1));
+  const fade = clamp((148 - t) / 148, 0, 1);
+  const alpha = build * fade;
+  if (alpha <= 0.001) return;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+
+  const coreGlow = ctx.createRadialGradient(impactX, impactY, 0, impactX, impactY, 320);
+  coreGlow.addColorStop(0, "rgba(255, 252, 236, 0.96)");
+  coreGlow.addColorStop(0.16, "rgba(255, 225, 170, 0.86)");
+  coreGlow.addColorStop(0.48, "rgba(255, 134, 72, 0.34)");
+  coreGlow.addColorStop(1, "rgba(255, 134, 72, 0)");
+  ctx.globalAlpha = 0.68 * alpha;
+  ctx.fillStyle = coreGlow;
+  ctx.beginPath();
+  ctx.arc(impactX, impactY, 320, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < 18; i += 1) {
+    const baseAngle = (Math.PI * 2 * i) / 18 + Math.sin(i * 1.7) * 0.18 - 0.24;
+    const beamLen = 84 + build * (160 + (i % 5) * 20);
+    const beamW = 9 + (i % 4) * 3;
+    ctx.save();
+    ctx.translate(impactX, impactY);
+    ctx.rotate(baseAngle + t * 0.006);
+    ctx.globalAlpha = alpha * (0.1 + (i % 3) * 0.05);
+    const beamGrad = ctx.createLinearGradient(0, 0, beamLen, 0);
+    beamGrad.addColorStop(0, "rgba(255, 250, 236, 0.96)");
+    beamGrad.addColorStop(0.26, i % 2 === 0 ? "rgba(255, 172, 94, 0.7)" : "rgba(124, 186, 255, 0.64)");
+    beamGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+    ctx.fillStyle = beamGrad;
+    ctx.beginPath();
+    ctx.moveTo(-8, -beamW * 0.34);
+    ctx.lineTo(beamLen, -beamW * 0.12);
+    ctx.lineTo(beamLen - 28, beamW * 0.5);
+    ctx.lineTo(-8, beamW * 0.34);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  const ringSpecs = [
+    { offset: 0, duration: 44, radius: 260, color: "255, 248, 236", width: 16 },
+    { offset: 9, duration: 52, radius: 308, color: "255, 174, 102", width: 12 },
+    { offset: 22, duration: 60, radius: 356, color: "140, 198, 255", width: 10 },
+  ];
+  ringSpecs.forEach((ring) => {
+    const rp = clamp((t - ring.offset) / ring.duration, 0, 1);
+    if (rp <= 0 || rp >= 1) return;
+    const rr = 24 + rp * ring.radius;
+    ctx.save();
+    ctx.globalAlpha = (1 - rp) * 0.5 * alpha;
+    ctx.strokeStyle = `rgba(${ring.color}, 1)`;
+    ctx.lineWidth = ring.width * (1 - rp * 0.6);
+    ctx.beginPath();
+    ctx.ellipse(impactX, impactY, rr, rr * 0.72, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  });
+
+  for (let i = 0; i < 24; i += 1) {
+    const ang = (Math.PI * 2 * i) / 24 + Math.sin(i * 3.14) * 0.12;
+    const dist = 28 + build * (72 + (i % 6) * 22);
+    const shardX = impactX + Math.cos(ang) * dist;
+    const shardY = impactY + Math.sin(ang) * dist * 0.7 - build * (6 + (i % 4) * 5);
+    const shardW = 10 + (i % 4) * 4;
+    const shardH = 3.5 + (i % 3) * 1.5;
+    const shardFill =
+      i % 5 === 0
+        ? "rgba(255, 229, 184, 0.94)"
+        : i % 2 === 0
+          ? "rgba(235, 243, 252, 0.92)"
+          : "rgba(174, 198, 222, 0.88)";
+    drawStageTwoOutroShard(shardX, shardY, shardW, shardH, ang + build * 3.8, shardFill, alpha * 0.95);
+  }
+
+  ctx.restore();
+
+  const floorShock = clamp((t - 10) / 54, 0, 1);
+  if (floorShock > 0 && floorShock < 1) {
+    ctx.save();
+    ctx.globalAlpha = (1 - floorShock) * 0.46;
+    ctx.strokeStyle = "rgba(255, 238, 205, 1)";
+    ctx.lineWidth = 12 - floorShock * 6;
+    ctx.beginPath();
+    ctx.ellipse(impactX, groundY - 10, 40 + floorShock * 220, 12 + floorShock * 24, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawStageTwoOutroAftermathSpectacle(impactX, impactY, groundY, smokeAlpha, t) {
+  if (smokeAlpha <= 0.001) return;
+  const smokeProgress = clamp(
+    (t - STAGE_TWO_OUTRO_IMPACT_SHOT_END) /
+      Math.max(1, STAGE_TWO_OUTRO_RUN_SHOT_START - STAGE_TWO_OUTRO_IMPACT_SHOT_END),
+    0,
+    1
+  );
+
+  ctx.save();
+  const backGlow = ctx.createRadialGradient(impactX, groundY - 56, 0, impactX, groundY - 56, 360);
+  backGlow.addColorStop(0, `rgba(255, 178, 98, ${0.36 * smokeAlpha})`);
+  backGlow.addColorStop(0.3, `rgba(255, 225, 170, ${0.2 * smokeAlpha})`);
+  backGlow.addColorStop(1, "rgba(255, 225, 170, 0)");
+  ctx.fillStyle = backGlow;
+  ctx.beginPath();
+  ctx.arc(impactX, groundY - 56, 360, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < 14; i += 1) {
+    const rise = clamp((smokeProgress * 1.2) - i * 0.05, 0, 1);
+    if (rise <= 0) continue;
+    const sx = impactX - 190 + i * 30 + Math.sin(i * 1.8 + t * 0.02) * 14;
+    const sy = groundY - 24 - rise * (104 + (i % 4) * 26);
+    const sr = 30 + (i % 5) * 12 + rise * 18;
+    ctx.globalAlpha = (0.1 + (i % 3) * 0.03) * smokeAlpha;
+    ctx.fillStyle = i % 2 === 0 ? "rgba(34, 42, 64, 1)" : "rgba(230, 235, 242, 1)";
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (let i = 0; i < 28; i += 1) {
+    const life = ((t * 2.1 + i * 29) % 132) / 132;
+    const ex = impactX - 220 + ((i * 43) % 460);
+    const ey = groundY - 8 - life * (130 + (i % 4) * 44);
+    const er = 1.6 + (i % 3) * 0.7;
+    ctx.globalAlpha = (1 - life) * smokeAlpha * (0.16 + (i % 2) * 0.08);
+    ctx.fillStyle = i % 3 === 0 ? "rgba(255, 238, 188, 1)" : "rgba(255, 144, 70, 1)";
+    ctx.beginPath();
+    ctx.arc(ex + Math.sin(i * 2 + t * 0.03) * 10, ey, er, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (let i = 0; i < 12; i += 1) {
+    const fall = clamp((smokeProgress * 1.35) - i * 0.07, 0, 1);
+    if (fall <= 0 || fall >= 1) continue;
+    const shardX = impactX - 210 + i * 34 + Math.sin(i * 4.4) * 12;
+    const shardY = impactY - 124 + fall * (170 + (i % 3) * 28);
+    const shardW = 18 + (i % 3) * 8;
+    const shardH = 7 + (i % 2) * 3;
+    const shardA = (1 - fall) * 0.36 * smokeAlpha;
+    drawStageTwoOutroShard(
+      shardX,
+      shardY,
+      shardW,
+      shardH,
+      -0.8 + fall * 2.8 + i * 0.18,
+      i % 2 === 0 ? "rgba(226, 233, 244, 0.92)" : "rgba(146, 159, 183, 0.88)",
+      shardA
+    );
+  }
+  ctx.restore();
+}
+
+function drawStageTwoOutroRunSpectacle(heroX, groundY, run, runAlpha) {
+  if (runAlpha <= 0.001) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  const flare = ctx.createRadialGradient(heroX - 110, groundY - 52, 0, heroX - 110, groundY - 52, 240);
+  flare.addColorStop(0, "rgba(255, 216, 156, 0.45)");
+  flare.addColorStop(0.36, "rgba(255, 138, 74, 0.18)");
+  flare.addColorStop(1, "rgba(255, 138, 74, 0)");
+  ctx.globalAlpha = runAlpha * (0.4 + (1 - run) * 0.24);
+  ctx.fillStyle = flare;
+  ctx.beginPath();
+  ctx.arc(heroX - 110, groundY - 52, 240, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < 10; i += 1) {
+    const tail = 1 - i / 10;
+    const sx = heroX - 30 - i * 24;
+    const sy = groundY - 28 - (i % 2) * 8;
+    const len = 22 + tail * 14;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(-0.16 + i * 0.02);
+    ctx.globalAlpha = runAlpha * tail * 0.28;
+    const grad = ctx.createLinearGradient(-len / 2, 0, len / 2, 0);
+    grad.addColorStop(0, "rgba(255,255,255,0)");
+    grad.addColorStop(0.44, i % 2 === 0 ? "rgba(255, 184, 112, 1)" : "rgba(187, 214, 245, 0.94)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grad;
+    roundRect(-len / 2, -2, len, 4, 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 function drawStageTwoOutroOverlay() {
   const stageTwo = game.stageTwo;
   const outro = game.stageTwoOutro;
@@ -1319,14 +1545,18 @@ function drawStageTwoOutroOverlay() {
   const groundY = stageTwo.groundY ?? 430;
   const impactX = outro.impactX ?? WIDTH * 0.7;
   const impactY = outro.impactY ?? groundY - 120;
-  const impactShotEnd = 236;
-  const runStart = 336;
-  const runEnd = 566;
+  const impactShotEnd = STAGE_TWO_OUTRO_IMPACT_SHOT_END;
+  const runStart = STAGE_TWO_OUTRO_RUN_SHOT_START;
+  const runEnd = STAGE_TWO_OUTRO_RUN_SHOT_END;
   const towerShotStart = runEnd;
   const inImpactShot = t < impactShotEnd;
   const inSmokeShot = t >= impactShotEnd && t < runStart;
   const inRunShot = t >= runStart && t < runEnd;
   const inTowerShot = t >= towerShotStart;
+
+  if (inImpactShot) {
+    drawStageTwoOutroImpactSpectacle(impactX, impactY, groundY, t);
+  }
 
   const shockFocus = easeOutCubic(clamp((t - 2) / 22, 0, 1)) * clamp((220 - t) / 128, 0, 1);
   if (inImpactShot && shockFocus > 0.001) {
@@ -1376,6 +1606,9 @@ function drawStageTwoOutroOverlay() {
 
   const smokeShotProgress = clamp((t - impactShotEnd) / Math.max(1, runStart - impactShotEnd), 0, 1);
   const smokeAlpha = inSmokeShot ? 1 - easeOutCubic(smokeShotProgress) : 0;
+  if (smokeAlpha > 0.001) {
+    drawStageTwoOutroAftermathSpectacle(impactX, impactY, groundY, smokeAlpha, t);
+  }
   const smokeGrad = ctx.createLinearGradient(0, groundY - 170, 0, HEIGHT);
   smokeGrad.addColorStop(0, "rgba(18, 24, 42, 0)");
   smokeGrad.addColorStop(0.34, `rgba(18, 24, 42, ${0.16 * smokeAlpha})`);
@@ -1446,6 +1679,7 @@ function drawStageTwoOutroOverlay() {
   if (runAlpha > 0.001) {
     const heroX = outro.heroBurstX + easeOutCubic(run) * 228;
     const heroY = outro.heroBurstY - Math.abs(Math.sin(run * Math.PI * 4.4)) * 8;
+    drawStageTwoOutroRunSpectacle(heroX, groundY, run, runAlpha);
 
     ctx.save();
     for (let i = 0; i < 7; i += 1) {
@@ -1502,7 +1736,7 @@ function drawStageTwoOutroOverlay() {
   }
 
   const towerLocal = t - towerShotStart;
-  if (inTowerShot && towerLocal >= 72 && towerLocal < 244) {
+  if (inTowerShot && towerLocal >= 72 && towerLocal < 318) {
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.fillStyle = "rgba(12, 18, 35, 0.52)";
@@ -1518,25 +1752,71 @@ function drawStageTwoOutroOverlay() {
     ctx.restore();
   }
 
-  if (t > STAGE_TWO_OUTRO_TOTAL_FRAMES - 180) {
+  if (
+    inTowerShot &&
+    towerLocal >= 334 &&
+    t < STAGE_TWO_OUTRO_TOTAL_FRAMES - 180
+  ) {
     ctx.save();
     ctx.globalAlpha = 1;
-    const vignette = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, 90, WIDTH / 2, HEIGHT / 2, 760);
-    vignette.addColorStop(0, "rgba(0,0,0,0)");
-    vignette.addColorStop(0.55, "rgba(0,0,0,0.46)");
-    vignette.addColorStop(1, "rgba(0,0,0,0.76)");
-    ctx.fillStyle = vignette;
+    ctx.fillStyle = "rgba(12, 18, 35, 0.56)";
+    roundRect(40, HEIGHT - 94, 304, 62, 18);
+    ctx.fill();
+    ctx.fillStyle = "#fff7e8";
+    ctx.font = "bold 22px Avenir Next, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("孤膽英雄的登頂", 62, HEIGHT - 56);
+    ctx.fillStyle = "rgba(255, 247, 232, 0.84)";
+    ctx.font = "600 14px Avenir Next, sans-serif";
+    ctx.fillText("一步一步，殺上塔頂。", 62, HEIGHT - 30);
+    ctx.restore();
+  }
+
+  const finalCardStart = STAGE_TWO_OUTRO_TOTAL_FRAMES - 180;
+  if (t > finalCardStart) {
+    const finalCardProgress = clamp((t - finalCardStart) / 180, 0, 1);
+    const fadeIn = easeOutCubic(clamp(finalCardProgress / 0.34, 0, 1));
+    const textAlpha = easeOutCubic(clamp((finalCardProgress - 0.16) / 0.4, 0, 1));
+    const hintAlpha = easeOutCubic(clamp((finalCardProgress - 0.28) / 0.34, 0, 1));
+    const driftY = (1 - fadeIn) * 18;
+    ctx.save();
+    const bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+    bg.addColorStop(0, `rgba(0, 0, 0, ${0.94 * fadeIn})`);
+    bg.addColorStop(0.55, `rgba(4, 8, 18, ${0.96 * fadeIn})`);
+    bg.addColorStop(1, `rgba(0, 0, 0, ${fadeIn})`);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    ctx.globalAlpha = 0.18 * fadeIn;
+    const glow = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2 - 12, 30, WIDTH / 2, HEIGHT / 2 - 12, 280);
+    glow.addColorStop(0, "rgba(255, 214, 120, 0.46)");
+    glow.addColorStop(0.42, "rgba(255, 214, 120, 0.08)");
+    glow.addColorStop(1, "rgba(255, 214, 120, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    ctx.globalAlpha = 0.72 * textAlpha;
+    const stripeGrad = ctx.createLinearGradient(WIDTH / 2 - 150, HEIGHT / 2 - 72, WIDTH / 2 + 150, HEIGHT / 2 - 72);
+    stripeGrad.addColorStop(0, palette.stripeRed);
+    stripeGrad.addColorStop(0.5, palette.stripeBlue);
+    stripeGrad.addColorStop(1, palette.stripeOrange);
+    ctx.fillStyle = stripeGrad;
+    roundRect(WIDTH / 2 - 148, HEIGHT / 2 - 74 + driftY * 0.35, 296, 8, 4);
+    ctx.fill();
+
+    ctx.globalAlpha = textAlpha;
     ctx.fillStyle = "#ffec8c";
     ctx.font = "bold 30px Avenir Next, sans-serif";
     ctx.textAlign = "center";
     ctx.shadowColor = "rgba(0,0,0,0.45)";
     ctx.shadowBlur = 16;
-    ctx.fillText("決戰！能量之巔", WIDTH / 2, HEIGHT / 2 - 6);
+    ctx.fillText("決戰！能量之巔", WIDTH / 2, HEIGHT / 2 - 6 + driftY);
     ctx.shadowBlur = 0;
+    ctx.globalAlpha = 0.84 * hintAlpha;
     ctx.fillStyle = "rgba(255, 247, 232, 0.82)";
     ctx.font = "600 16px Avenir Next, sans-serif";
-    ctx.fillText("200p 就在塔頂，衝上去把它救回來。", WIDTH / 2, HEIGHT / 2 + 26);
+    ctx.fillText("200p 就在塔頂，衝上去把它救回來。", WIDTH / 2, HEIGHT / 2 + 28 + driftY * 0.72);
     ctx.restore();
   }
 }
@@ -1841,10 +2121,13 @@ function getAudioToggleRect() {
 }
 
 function getReplayButtonRect() {
-  return { x: WIDTH / 2 - 142, y: 426, w: 284, h: 50 };
+  return { x: WIDTH / 2 - 166, y: 454, w: 332, h: 54 };
 }
 
 function drawAudioToggle() {
+  if (game.state === "won" || game.state === "gameover") {
+    return;
+  }
   const button = getAudioToggleRect();
   ctx.fillStyle = "rgba(12, 18, 35, 0.66)";
   roundRect(button.x, button.y, button.w, button.h, 14);
@@ -2117,6 +2400,76 @@ function drawPrologueIntro() {
   ctx.fillStyle = "rgba(255, 247, 232, 0.76)";
   ctx.font = "bold 14px Avenir Next, sans-serif";
   ctx.fillText("點一下 / Space / Enter 可跳過動畫", WIDTH / 2, 506);
+}
+
+function drawPrologueStageCard() {
+  const title = SLINGSHOT_FIRST_ORDER ? "第一階段：擊碎！通路高牆" : "第一階段：決戰！能量之巔";
+  const subtitle = SLINGSHOT_FIRST_ORDER
+    ? "發射僅存的康貝特，先砸出第一道上架破口。"
+    : "殺上能量巨塔，把被封印的 200p 奪回來。";
+  const timer = game.prologueStageCardTimer || 0;
+  const t = clamp(timer / Math.max(1, PROLOGUE_STAGE_CARD_FRAMES), 0, 1);
+  const fadeIn = easeOutCubic(clamp(t / 0.18, 0, 1));
+  const fadeOut = easeInOutCubic(clamp((1 - t) / 0.16, 0, 1));
+  const alpha = Math.min(fadeIn, fadeOut);
+  const driftY = (1 - fadeIn) * 16 - (1 - fadeOut) * 8;
+
+  const bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  bg.addColorStop(0, `rgba(0, 0, 0, ${0.98 * alpha})`);
+  bg.addColorStop(0.56, `rgba(4, 8, 18, ${0.98 * alpha})`);
+  bg.addColorStop(1, `rgba(0, 0, 0, ${alpha})`);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  ctx.save();
+  ctx.globalAlpha = 0.2 * alpha;
+  const glow = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2 - 10, 40, WIDTH / 2, HEIGHT / 2 - 10, 320);
+  glow.addColorStop(0, "rgba(255, 214, 120, 0.46)");
+  glow.addColorStop(0.45, "rgba(255, 214, 120, 0.09)");
+  glow.addColorStop(1, "rgba(255, 214, 120, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.78 * alpha;
+  const stripeY = 110 + driftY * 0.4;
+  const stripeGrad = ctx.createLinearGradient(WIDTH / 2 - 170, stripeY, WIDTH / 2 + 170, stripeY);
+  stripeGrad.addColorStop(0, palette.stripeRed);
+  stripeGrad.addColorStop(0.5, palette.stripeBlue);
+  stripeGrad.addColorStop(1, palette.stripeOrange);
+  ctx.fillStyle = stripeGrad;
+  roundRect(WIDTH / 2 - 168, stripeY, 336, 8, 4);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.9 * alpha;
+  ctx.fillStyle = "rgba(255, 247, 232, 0.58)";
+  ctx.font = "bold 13px Avenir Next, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("MISSION CARD", WIDTH / 2, HEIGHT / 2 - 78 + driftY * 0.45);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = "#ffec8c";
+  ctx.font = "bold 34px Avenir Next, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(title, WIDTH / 2, HEIGHT / 2 - 6 + driftY);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = "rgba(255, 247, 232, 0.84)";
+  ctx.font = "600 17px Avenir Next, sans-serif";
+  ctx.fillText(subtitle, WIDTH / 2, HEIGHT / 2 + 28 + driftY * 0.75);
+
+  ctx.globalAlpha = alpha * clamp((t - 0.18) / 0.2, 0, 1);
+  ctx.fillStyle = "rgba(255, 247, 232, 0.56)";
+  ctx.font = "600 13px Avenir Next, sans-serif";
+  ctx.fillText("點一下 / Space / Enter 可略過", WIDTH / 2, HEIGHT - 34);
+  ctx.restore();
 }
 
 function drawOverlay() {
@@ -2409,6 +2762,14 @@ function drawOverlay() {
     return;
   }
 
+  if (game.state === "won" || game.state === "gameover") {
+    if (game.state === "won") {
+      drawWinFx();
+    }
+    drawResultPanel();
+    return;
+  }
+
   if (game.overlayTimer <= 0) {
     drawBossArrivalSpeechBubble();
     return;
@@ -2426,14 +2787,6 @@ function drawOverlay() {
   ctx.font = "bold 20px Avenir Next, sans-serif";
   ctx.fillText(game.overlayText, WIDTH / 2, overlayY + 30);
   drawBossArrivalSpeechBubble();
-
-  if (game.state === "won" || game.state === "gameover") {
-    if (game.state === "won") {
-      drawWinFx();
-    }
-    drawResultPanel();
-  }
-
 }
 
 function drawSpeechBubble(x, y, w, h, text, align = "center") {
@@ -2691,163 +3044,268 @@ function drawEndingRescueScene() {
   ctx.fillText("按 Space、Enter 或點一下可略過", WIDTH / 2, HEIGHT - 28);
 }
 
+function drawResultFeaturePanel(x, y, w, h, isWin) {
+  ctx.save();
+  const cardGradient = ctx.createLinearGradient(x, y, x, y + h);
+  cardGradient.addColorStop(0, "rgba(245, 249, 255, 0.98)");
+  cardGradient.addColorStop(1, "rgba(255, 251, 244, 0.96)");
+  ctx.fillStyle = cardGradient;
+  roundRect(x, y, w, h, 24);
+  ctx.fill();
+  ctx.strokeStyle = isWin ? "rgba(255, 190, 96, 0.36)" : "rgba(239, 42, 62, 0.24)";
+  ctx.lineWidth = 2;
+  roundRect(x, y, w, h, 24);
+  ctx.stroke();
+
+  ctx.fillStyle = palette.stripeBlue;
+  ctx.font = "bold 12px Avenir Next, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("康貝特200P 記憶點", x + 18, y + 26);
+
+  if (canDrawImage(art.product)) {
+    ctx.save();
+    ctx.globalAlpha = 0.14;
+    const drawH = 104;
+    const drawW = drawH * 0.43;
+    ctx.drawImage(art.product, x + w - drawW - 12, y + h - drawH - 18, drawW, drawH);
+    ctx.restore();
+  }
+
+  const copyX = x + 18;
+  const lines = [
+    "7維他命 + 胺基酸",
+    "牛磺酸補能",
+    "咖啡因1.5倍 / 容量1.25倍",
+    "活力氣泡清爽順口",
+  ];
+  ctx.fillStyle = "#17223e";
+  ctx.font = "bold 16px Avenir Next, sans-serif";
+  ctx.fillText(isWin ? "本土補能回來了" : "補滿再上", copyX, y + 58);
+  ctx.fillStyle = "#5a6786";
+  ctx.font = "13px Avenir Next, sans-serif";
+  lines.forEach((line, idx) => {
+    ctx.fillText(`• ${line}`, copyX, y + 84 + idx * 17);
+  });
+
+  drawPillSticker(x + w / 2, y + h - 20, isWin ? "喝了再上" : "高CP值補能", {
+    fill: isWin ? "rgba(255, 123, 32, 0.14)" : "rgba(239, 42, 62, 0.12)",
+    stroke: isWin ? "rgba(255, 123, 32, 0.22)" : "rgba(239, 42, 62, 0.18)",
+    color: isWin ? "#d45c00" : "#c7263a",
+    font: "bold 12px Avenir Next, sans-serif",
+    h: 28,
+  });
+  ctx.restore();
+}
+
+function drawResultMessageCard(x, y, w, h, title, lines, accent = "#1946b8") {
+  const compact = h < 64;
+  ctx.save();
+  ctx.fillStyle = "rgba(18, 30, 58, 0.94)";
+  roundRect(x, y, w, h, 22);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.lineWidth = 1.5;
+  roundRect(x, y, w, h, 22);
+  ctx.stroke();
+
+  ctx.fillStyle = accent;
+  roundRect(x + 16, y + 16, 70, 6, 3);
+  ctx.fill();
+  ctx.font = compact ? "bold 15px Avenir Next, sans-serif" : "bold 16px Avenir Next, sans-serif";
+  ctx.fillText(title, x + 16, compact ? y + 34 : y + 42);
+
+  ctx.fillStyle = "rgba(255, 247, 232, 0.82)";
+  ctx.font = compact ? "13px Avenir Next, sans-serif" : "14px Avenir Next, sans-serif";
+  ctx.textAlign = "left";
+  lines.forEach((line, idx) => {
+    ctx.fillText(line, x + 16, (compact ? y + 50 : y + 68) + idx * (compact ? 16 : 20));
+  });
+  ctx.restore();
+  ctx.textAlign = "center";
+}
+
 function drawResultPanel() {
   const isWin = game.state === "won";
-  const panelX = 140;
-  const panelY = 88;
+  const isStageTwoCampaign = Boolean(isWin && game.stage === 2);
+  const isSlingStage = game.stage === 2;
+  const panelX = 54;
+  const panelY = 34;
   const panelW = WIDTH - panelX * 2;
-  const panelH = 408;
+  const panelH = 500;
   const stageTwoShotsUsed = game.stageTwo
     ? Math.max(0, (game.stageTwo.startingShots || 0) - (game.stageTwo.shotsLeft || 0))
     : 0;
   const stageTwoTargetsLeft = game.stageTwo ? countStageTwoActiveTargets(game.stageTwo) : 0;
   const stageTwoBestImpact = game.stageTwo ? Math.round(game.stageTwo.bestImpact || 0) : 0;
 
-  ctx.save();
-  ctx.fillStyle = "rgba(12, 18, 35, 0.78)";
-  roundRect(panelX, panelY, panelW, panelH, 28);
-  ctx.fill();
-  ctx.strokeStyle = isWin ? "rgba(255, 236, 140, 0.45)" : "rgba(255, 209, 192, 0.4)";
-  ctx.lineWidth = 2;
-  roundRect(panelX, panelY, panelW, panelH, 28);
-  ctx.stroke();
-  ctx.restore();
-
-  const accentColor = isWin ? "#ffec8c" : "#ffd1c0";
-  ctx.textAlign = "center";
-
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.55)";
-  ctx.shadowBlur = 12;
-  ctx.shadowOffsetY = 3;
-  ctx.fillStyle = accentColor;
-  ctx.font = "bold 44px Avenir Next, sans-serif";
+  const headerKicker = isWin ? "RESULT · VICTORY" : "RESULT · RETRY";
   const titleText = isWin
-    ? game.stage === 2
-      ? "壟斷結界碎裂"
-      : level.goal
-        ? "金庫開啟"
-        : "兩大霸主擊破"
-    : "逆襲失敗";
-  ctx.fillText(titleText, WIDTH / 2, panelY + 70);
-  ctx.restore();
-
-  ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
-  ctx.font = "14px Avenir Next, sans-serif";
+    ? isStageTwoCampaign
+      ? "逆襲成功"
+      : "能量巨塔攻破"
+    : isSlingStage
+      ? "通路戰暫停"
+      : "塔頂決戰失手";
   const subtitle = isWin
-    ? game.stage === 2
-      ? SLINGSHOT_FIRST_ORDER
-        ? "通路高牆碎裂 · 能量之巔決戰 · 200p獲救"
-        : "能量之巔決戰 · 通路高牆碎裂 · 200p獲救"
-      : level.goal
-        ? `${hudBossStageName()}金庫開啟`
-        : "能量巨塔解放"
-    : "逆襲暫時受阻";
-  ctx.fillText(subtitle, WIDTH / 2, panelY + 92);
+    ? isStageTwoCampaign
+      ? "康貝特200P 奪回成功，本土補能重新上架。"
+      : "兩大霸主失守，離救回 200P 只差最後一步。"
+    : isSlingStage
+      ? "還差一口氣就能砸穿封鎖，再調角度重來。"
+      : "你已經攻上能量巨塔，下一輪就把霸主踩下來。";
+  const summary = isWin
+    ? isStageTwoCampaign
+      ? "通路高牆已碎、能量巨塔已破，康貝特200P 準備重回大街小巷。"
+      : "巨塔決戰打開了金庫，壟斷結界開始鬆動。"
+    : isSlingStage
+      ? `這輪用了 ${stageTwoShotsUsed} 發，還差 ${stageTwoTargetsLeft} 個目標就能打通上架權。`
+      : "兩大霸主還沒倒，但你已經打到了塔頂，節奏和路線都摸到了。";
 
-  drawCornerBug(panelX + panelW - 270, panelY + 24, "康貝特200P", isWin ? "喝了再上" : "補能再上");
+  ctx.save();
+  ctx.fillStyle = "rgba(8, 12, 28, 0.62)";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  const glow = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2 - 40, 80, WIDTH / 2, HEIGHT / 2 - 40, 520);
+  glow.addColorStop(0, isWin ? "rgba(255, 215, 138, 0.2)" : "rgba(255, 122, 96, 0.14)");
+  glow.addColorStop(1, "rgba(8, 12, 28, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  if (isWin && game.stageOneRating > 0) {
-    drawResultStars(game.stageOneRating, WIDTH / 2, panelY + 134);
+  ctx.shadowColor = "rgba(0,0,0,0.28)";
+  ctx.shadowBlur = 24;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = "rgba(12, 18, 35, 0.12)";
+  roundRect(panelX + 10, panelY + 12, panelW, panelH, 34);
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+
+  const panelGradient = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
+  panelGradient.addColorStop(0, "rgba(255, 252, 246, 0.97)");
+  panelGradient.addColorStop(1, "rgba(243, 248, 255, 0.96)");
+  ctx.fillStyle = panelGradient;
+  roundRect(panelX, panelY, panelW, panelH, 34);
+  ctx.fill();
+  ctx.strokeStyle = isWin ? "rgba(255, 190, 96, 0.3)" : "rgba(239, 42, 62, 0.22)";
+  ctx.lineWidth = 2;
+  roundRect(panelX, panelY, panelW, panelH, 34);
+  ctx.stroke();
+
+  ctx.fillStyle = palette.stripeBlue;
+  roundRect(panelX, panelY, panelW, 18, 18);
+  ctx.fill();
+  ctx.fillStyle = isWin ? palette.stripeOrange : palette.stripeRed;
+  roundRect(panelX + panelW - 230, panelY, 112, 18, 18);
+  ctx.fill();
+  ctx.fillStyle = isWin ? "#ffd166" : palette.stripeOrange;
+  roundRect(panelX + panelW - 116, panelY, 116, 18, 18);
+  ctx.fill();
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = isWin ? "#1946b8" : "#d12a3d";
+  ctx.font = "bold 14px Avenir Next, sans-serif";
+  ctx.fillText(headerKicker, panelX + 42, panelY + 56);
+
+  ctx.fillStyle = "#16203d";
+  ctx.font = "bold 42px Avenir Next, sans-serif";
+  ctx.fillText(titleText, panelX + 42, panelY + 102);
+  ctx.fillStyle = "#56647f";
+  ctx.font = "17px Avenir Next, sans-serif";
+  ctx.fillText(subtitle, panelX + 42, panelY + 132);
+
+  if (isWin && game.stageOneRating > 0 && !isStageTwoCampaign) {
+    drawResultStars(game.stageOneRating, panelX + 126, panelY + 144);
   }
 
-  const cardsTop = panelY + 168;
-  const cardH = 96;
-  const gap = 14;
+  const featureX = panelX + panelW - 250;
+  const featureY = panelY + 38;
+  drawResultFeaturePanel(featureX, featureY, 208, 176, isWin);
 
-  if (isWin && game.stage === 2) {
-    const cardW = (panelW - 60 - gap) / 2;
-    const leftX = panelX + 30;
-    const rightX = leftX + cardW + gap;
+  const summaryX = panelX + 42;
+  const summaryY = panelY + 164;
+  const summaryW = featureX - summaryX - 18;
+  ctx.fillStyle = isWin ? "rgba(255, 240, 214, 0.96)" : "rgba(255, 240, 239, 0.96)";
+  roundRect(summaryX, summaryY, summaryW, 56, 18);
+  ctx.fill();
+  ctx.strokeStyle = isWin ? "rgba(255, 190, 96, 0.24)" : "rgba(239, 42, 62, 0.18)";
+  ctx.lineWidth = 1.5;
+  roundRect(summaryX, summaryY, summaryW, 56, 18);
+  ctx.stroke();
+  ctx.fillStyle = isWin ? "#c86c00" : "#c7263a";
+  ctx.font = "bold 12px Avenir Next, sans-serif";
+  ctx.fillText(isWin ? "本輪戰報" : "本輪回顧", summaryX + 18, summaryY + 22);
+  ctx.fillStyle = "#16203d";
+  ctx.font = "bold 16px Avenir Next, sans-serif";
+  ctx.fillText(summary, summaryX + 18, summaryY + 42);
 
-    const bossStats = {
-      label: SLINGSHOT_FIRST_ORDER ? "第二階段 · 決戰能量之巔" : "第一階段 · 決戰能量之巔",
-      color: "#ffd166",
-      stats: [
-        { value: `${game.coins}`, unit: "罐 200P" },
-        { value: `+${formatStatNumber(game.timeBoostEarned)}s`, unit: "延長時間" },
-        { value: `${game.comboBest}`, unit: "最高連踩" },
-      ],
-    };
+  const cardsTop = panelY + 242;
+  const leftAreaX = panelX + 42;
+  const leftAreaW = panelW - 42 - 42 - 224;
+  const cardGap = 16;
+
+  if (isStageTwoCampaign) {
+    const cardW = (leftAreaW - cardGap) / 2;
     const slingStats = {
       label: SLINGSHOT_FIRST_ORDER ? "第一階段 · 擊碎通路高牆" : "第二階段 · 擊碎通路高牆",
       color: "#ff7b20",
       stats: [
-        { value: `${game.stageTwo ? game.stageTwo.score : 0}`, unit: "分數" },
+        { value: `${game.stageTwo ? game.stageTwo.score : 0}`, unit: "通路分數" },
         { value: `${game.stageTwo ? game.stageTwo.shotsLeft : 0}`, unit: "剩餘彈藥" },
         { value: `${stageTwoBestImpact}`, unit: "最佳衝擊" },
       ],
     };
-
+    const bossStats = {
+      label: SLINGSHOT_FIRST_ORDER ? "第二階段 · 決戰能量之巔" : "第一階段 · 決戰能量之巔",
+      color: "#ffd166",
+      stats: [
+        { value: `${game.coins}`, unit: "收回 200P" },
+        { value: `+${formatStatNumber(game.timeBoostEarned)}s`, unit: "延長時間" },
+        { value: `${game.comboBest}`, unit: "最高連踩" },
+      ],
+    };
     if (SLINGSHOT_FIRST_ORDER) {
-      drawResultCard(leftX, cardsTop, cardW, cardH, slingStats);
-      drawResultCard(rightX, cardsTop, cardW, cardH, bossStats);
+      drawResultCard(leftAreaX, cardsTop, cardW, 122, slingStats);
+      drawResultCard(leftAreaX + cardW + cardGap, cardsTop, cardW, 122, bossStats);
     } else {
-      drawResultCard(leftX, cardsTop, cardW, cardH, bossStats);
-      drawResultCard(rightX, cardsTop, cardW, cardH, slingStats);
+      drawResultCard(leftAreaX, cardsTop, cardW, 122, bossStats);
+      drawResultCard(leftAreaX + cardW + cardGap, cardsTop, cardW, 122, slingStats);
     }
-
-    ctx.fillStyle = "rgba(255, 246, 228, 0.92)";
-    ctx.font = "18px Avenir Next, sans-serif";
-    ctx.fillText("傳說配方回歸：7種維他命 + 胺基酸 + 牛磺酸，咖啡因1.5倍、容量1.25倍。", WIDTH / 2, cardsTop + cardH + 38);
   } else if (isWin) {
-    const cardW = panelW - 60;
-    const leftX = panelX + 30;
-    drawResultCard(leftX, cardsTop, cardW, cardH, {
+    drawResultCard(leftAreaX, cardsTop, leftAreaW, 122, {
       label: `${hudBossStageName()} · 決戰能量之巔`,
       color: "#ffd166",
       stats: [
-        { value: `${game.coins}`, unit: "罐 200P" },
+        { value: `${game.coins}`, unit: "收回 200P" },
         { value: `+${formatStatNumber(game.timeBoostEarned)}s`, unit: "延長時間" },
         { value: `${game.stomps}`, unit: "踩怪" },
         { value: `${game.comboBest}`, unit: "最高連踩" },
       ],
     });
-
-    ctx.fillStyle = "rgba(255, 246, 228, 0.92)";
-    ctx.font = "18px Avenir Next, sans-serif";
-    ctx.fillText("高CP值、本土底氣、活力氣泡清爽順口：康貝特200p重回市場。", WIDTH / 2, cardsTop + cardH + 38);
   } else {
-    const cardW = panelW - 60;
-    const leftX = panelX + 30;
-    drawResultCard(leftX, cardsTop, cardW, cardH, {
-      label: game.stage === 2 ? `${hudSlingStageName()}上架砲彈告急` : `${hudBossStageName()}失守`,
+    drawResultCard(leftAreaX, cardsTop, leftAreaW, 122, {
+      label: isSlingStage ? `${hudSlingStageName()} · 上架砲彈告急` : `${hudBossStageName()} · 能量之巔失手`,
       color: "#ef2a3e",
-      stats:
-        game.stage === 2
-          ? [
-              { value: `${game.stageTwo ? game.stageTwo.score : 0}`, unit: "分數" },
-              { value: `${stageTwoTargetsLeft}`, unit: "剩餘目標" },
-              { value: `${stageTwoShotsUsed}`, unit: "已用彈藥" },
-            ]
-          : [
-              { value: `${game.coins}`, unit: "罐 200P" },
-              { value: `${game.deaths}`, unit: "次倒下" },
-              { value: `${formatStatNumber(game.elapsed)}s`, unit: "撐了" },
-            ],
+      stats: isSlingStage
+        ? [
+            { value: `${game.stageTwo ? game.stageTwo.score : 0}`, unit: "通路分數" },
+            { value: `${stageTwoTargetsLeft}`, unit: "剩餘目標" },
+            { value: `${stageTwoShotsUsed}`, unit: "已用彈藥" },
+          ]
+        : [
+            { value: `${game.coins}`, unit: "收回 200P" },
+            { value: `${game.deaths}`, unit: "倒下次數" },
+            { value: `${formatStatNumber(game.elapsed)}s`, unit: "撐住時間" },
+          ],
     });
-    ctx.fillStyle = "rgba(255, 246, 228, 0.85)";
-    ctx.font = "17px Avenir Next, sans-serif";
-    ctx.fillText(
-      game.stage === 2
-        ? `這輪用了 ${stageTwoShotsUsed} 發，還差 ${stageTwoTargetsLeft} 個目標。`
-        : "兩大霸主還沒倒，小廠逆襲只是暫時受阻。",
-      WIDTH / 2,
-      cardsTop + cardH + 36
-    );
   }
-
-  ctx.fillStyle = "rgba(255, 247, 232, 0.6)";
-  ctx.font = "bold 10px Avenir Next, sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText(`BUILD ${BUILD_ID}`, 18, HEIGHT - 12);
 
   const replayButton = getReplayButtonRect();
   drawPillSticker(WIDTH / 2, replayButton.y - 18, getAdTagline(game.elapsed), {
-    fill: "rgba(12, 18, 35, 0.5)",
+    fill: "rgba(12, 18, 35, 0.66)",
     stroke: "rgba(255,255,255,0.12)",
     font: "bold 12px Avenir Next, sans-serif",
-    h: 26,
+    h: 28,
   });
   const replayGradient = ctx.createLinearGradient(
     replayButton.x,
@@ -2858,23 +3316,29 @@ function drawResultPanel() {
   replayGradient.addColorStop(0, palette.stripeRed);
   replayGradient.addColorStop(1, palette.stripeOrange);
   ctx.save();
-  ctx.shadowColor = "rgba(239, 42, 62, 0.55)";
+  ctx.shadowColor = "rgba(239, 42, 62, 0.34)";
   ctx.shadowBlur = 16;
   ctx.shadowOffsetY = 4;
   ctx.fillStyle = replayGradient;
-  roundRect(replayButton.x, replayButton.y, replayButton.w, replayButton.h, 18);
+  roundRect(replayButton.x, replayButton.y, replayButton.w, replayButton.h, 20);
   ctx.fill();
   ctx.restore();
 
   ctx.fillStyle = "#fff7e8";
-  ctx.font = "bold 22px Avenir Next, sans-serif";
+  ctx.font = "bold 24px Avenir Next, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("點一下再玩一次", WIDTH / 2, replayButton.y + replayButton.h / 2);
   ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "rgba(255, 255, 255, 0.62)";
+  ctx.fillStyle = "rgba(74, 88, 116, 0.92)";
   ctx.font = "13px Avenir Next, sans-serif";
-  ctx.fillText("也可以按 Space、Enter 或 R 直接重跑", WIDTH / 2, replayButton.y + replayButton.h + 24);
+  ctx.fillText("也可以按 Space、Enter 或 R 直接重跑", WIDTH / 2, replayButton.y + replayButton.h + 18);
+
+  ctx.fillStyle = "rgba(74, 88, 116, 0.66)";
+  ctx.font = "bold 10px Avenir Next, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(`BUILD ${BUILD_ID}`, panelX + 20, panelY + panelH - 14);
+  ctx.restore();
 }
 
 function drawResultStars(filled, cx, cy) {
@@ -2913,35 +3377,50 @@ function drawResultStars(filled, cx, cy) {
 
 function drawResultCard(x, y, w, h, info) {
   ctx.save();
-  ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
-  roundRect(x, y, w, h, 14);
+  const bg = ctx.createLinearGradient(x, y, x, y + h);
+  bg.addColorStop(0, "rgba(244, 248, 255, 0.96)");
+  bg.addColorStop(1, "rgba(230, 238, 250, 0.94)");
+  ctx.fillStyle = bg;
+  roundRect(x, y, w, h, 20);
   ctx.fill();
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
-  ctx.lineWidth = 1;
-  roundRect(x, y, w, h, 14);
+  ctx.strokeStyle = "rgba(22, 32, 61, 0.12)";
+  ctx.lineWidth = 1.5;
+  roundRect(x, y, w, h, 20);
   ctx.stroke();
 
   ctx.fillStyle = info.color;
-  roundRect(x, y, 4, h, 2);
+  roundRect(x, y, 6, h, 3);
   ctx.fill();
 
+  ctx.fillStyle = "rgba(12, 18, 35, 0.78)";
+  roundRect(x + 16, y + 14, Math.min(220, w - 32), 30, 15);
+  ctx.fill();
   ctx.textAlign = "left";
   ctx.fillStyle = info.color;
   ctx.font = "bold 13px Avenir Next, sans-serif";
-  ctx.fillText(info.label, x + 16, y + 24);
+  ctx.fillText(info.label, x + 24, y + 35);
 
   const stats = info.stats || [];
-  const colW = (w - 24) / Math.max(1, stats.length);
+  const colW = (w - 40) / Math.max(1, stats.length);
+  const valueFont = stats.length >= 4 ? 24 : 31;
   stats.forEach((stat, idx) => {
-    const cellX = x + 16 + idx * colW;
-    const cellCenter = cellX + colW / 2 - 16;
-    ctx.fillStyle = "#fff7e8";
-    ctx.font = "bold 28px Avenir Next, sans-serif";
+    const cellX = x + 20 + idx * colW;
+    const cellCenter = cellX + colW / 2;
+    if (idx > 0) {
+      ctx.strokeStyle = "rgba(22, 32, 61, 0.12)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cellX, y + 54);
+      ctx.lineTo(cellX, y + h - 18);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#16203d";
+    ctx.font = `bold ${valueFont}px Avenir Next, sans-serif`;
     ctx.textAlign = "center";
-    ctx.fillText(stat.value, cellCenter, y + 60);
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
-    ctx.font = "13px Avenir Next, sans-serif";
-    ctx.fillText(stat.unit, cellCenter, y + 82);
+    ctx.fillText(stat.value, cellCenter, y + 88);
+    ctx.fillStyle = "rgba(74, 88, 116, 0.92)";
+    ctx.font = "12px Avenir Next, sans-serif";
+    ctx.fillText(stat.unit, cellCenter, y + 110);
   });
   ctx.restore();
   ctx.textAlign = "center";
@@ -3049,6 +3528,13 @@ function render() {
     syncDebugHudButtonsVisibility();
     drawPrologueIntro();
     // Ensure touch chrome never lingers on top of cutscenes.
+    syncMobileControlsVisibility();
+    return;
+  }
+
+  if (game.state === "prologueStageCard") {
+    syncDebugHudButtonsVisibility();
+    drawPrologueStageCard();
     syncMobileControlsVisibility();
     return;
   }
@@ -3188,7 +3674,12 @@ function drawIntroBackdrop() {
 }
 
 function syncDebugHudButtonsVisibility() {
-  const shouldHide = game.state === "intro" || game.state === "prologue";
+  const shouldHide =
+    game.state === "intro" ||
+    game.state === "prologue" ||
+    game.state === "prologueStageCard" ||
+    game.state === "won" ||
+    game.state === "gameover";
   if (skipButton) {
     skipButton.style.display = shouldHide ? "none" : "";
   }

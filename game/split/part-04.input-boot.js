@@ -11,16 +11,20 @@ window.addEventListener("keydown", (event) => {
 
   if (game.bossCutscene?.active && event.code === HIDDEN_BOSS_SKIP_KEY) {
     event.preventDefault();
-    finishBossIntroCutscene();
+    skipBossCutscene();
     return;
   }
 
   if (
-    game.bossCutscene?.active &&
-    game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE &&
+    (game.state === "prologue" ||
+      game.state === "prologueStageCard" ||
+      game.bossCutscene?.active ||
+      game.state === "stage2Outro" ||
+      game.state === "ending") &&
     (event.code === "Space" || event.code === "Enter")
   ) {
     event.preventDefault();
+    skipCurrentDialogueScene();
     return;
   }
 
@@ -47,17 +51,8 @@ window.addEventListener("keydown", (event) => {
   }
 
   if (
-    game.state === "prologue" &&
-    (event.code === "Space" || event.code === "Enter")
-  ) {
-    event.preventDefault();
-    finishPrologueIntro();
-    return;
-  }
-
-  if (
     game.state === "ending" &&
-    (event.code === "Space" || event.code === "Enter" || event.code === "KeyN")
+    (event.code === "KeyN")
   ) {
     event.preventDefault();
     finishEndingRescueScene();
@@ -82,12 +77,6 @@ window.addEventListener("keydown", (event) => {
   if (game.state === "stage2Intro" && event.code === "Enter") {
     event.preventDefault();
     enterStageTwoPlaying();
-    return;
-  }
-
-  if (game.state === "stage2Outro" && (event.code === "Space" || event.code === "Enter")) {
-    event.preventDefault();
-    finishStageTwoToBossCutscene();
     return;
   }
 
@@ -206,7 +195,7 @@ function shouldIgnoreProloguePointer(event) {
 }
 
 function skipPrologueFromShellTap(event) {
-  if (game.state !== "prologue") {
+  if (game.state !== "prologue" && game.state !== "prologueStageCard") {
     return;
   }
   if (shouldIgnoreProloguePointer(event)) {
@@ -216,7 +205,11 @@ function skipPrologueFromShellTap(event) {
     return;
   }
   unlockAudio();
-  finishPrologueIntro();
+  if (game.state === "prologue") {
+    finishPrologueIntro();
+  } else {
+    finishPrologueStageCard();
+  }
   event.preventDefault();
 }
 
@@ -254,22 +247,31 @@ if (cutsceneVideo) {
 
 if (cutsceneVideoOverlay) {
   cutsceneVideoOverlay.addEventListener("pointerdown", (event) => {
-    if (
-      game.finalVictoryVideo?.active ||
-      (game.bossCutscene?.active && game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE)
-    ) {
+    if (game.finalVictoryVideo?.active) {
       event.preventDefault();
       event.stopPropagation();
       finishActiveCutsceneVideo();
+      return;
+    }
+    if (game.bossCutscene?.active && game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE) {
+      event.preventDefault();
+      event.stopPropagation();
+      skipBossCutscene();
     }
   });
   cutsceneVideoOverlay.addEventListener(
     "touchend",
     (event) => {
-      if (isCutsceneVideoActive()) {
+      if (game.finalVictoryVideo?.active) {
         event.preventDefault();
         event.stopPropagation();
         finishActiveCutsceneVideo();
+        return;
+      }
+      if (game.bossCutscene?.active && game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE) {
+        event.preventDefault();
+        event.stopPropagation();
+        skipBossCutscene();
       }
     },
     { passive: false }
@@ -342,6 +344,7 @@ canvas.addEventListener("pointerdown", (event) => {
   }
 
   if (game.bossCutscene?.active && game.bossCutscene.phase === BOSS_INTRO_VIDEO_PHASE) {
+    skipBossCutscene();
     event.preventDefault();
     return;
   }
@@ -361,13 +364,18 @@ canvas.addEventListener("pointerdown", (event) => {
   }
 
   if (game.state === "ending") {
-    finishEndingRescueScene();
+    skipCurrentDialogueScene();
     event.preventDefault();
     return;
   }
 
-  if (game.state === "prologue") {
-    finishPrologueIntro();
+  if (
+    game.state === "prologue" ||
+    game.state === "prologueStageCard" ||
+    game.bossCutscene?.active ||
+    game.state === "stage2Outro"
+  ) {
+    skipCurrentDialogueScene();
     event.preventDefault();
     return;
   }
@@ -386,12 +394,6 @@ canvas.addEventListener("pointerdown", (event) => {
 
   if (game.state === "intro") {
     startStageOneRun();
-    event.preventDefault();
-    return;
-  }
-
-  if (game.state === "stage2Outro") {
-    finishStageTwoToBossCutscene();
     event.preventDefault();
     return;
   }
@@ -479,14 +481,14 @@ canvas.addEventListener(
       event.preventDefault();
       return;
     }
-    if (game.state === "prologue") {
-      finishPrologueIntro();
-      event.preventDefault();
-      return;
-    }
-
-    if (game.state === "stage2Outro") {
-      finishStageTwoToBossCutscene();
+    if (
+      game.state === "prologue" ||
+      game.state === "prologueStageCard" ||
+      game.bossCutscene?.active ||
+      game.state === "stage2Outro" ||
+      game.state === "ending"
+    ) {
+      skipCurrentDialogueScene();
       event.preventDefault();
       return;
     }

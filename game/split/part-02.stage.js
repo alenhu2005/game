@@ -87,12 +87,15 @@ function resetStageOneWorldEntities() {
 }
 
 function resetRun() {
+  stopSubtitleNarration();
   resetStageOneWorldEntities();
   resetStageOneFx();
   resetStageTwoFx();
   game.player = createPlayer(level.spawn);
   game.stage = 1;
   game.state = "intro";
+  game.prologueTimer = 0;
+  game.prologueStageCardTimer = 0;
   game.coins = 0;
   game.lives = PLAYER_START_LIVES;
   game.elapsed = 0;
@@ -111,6 +114,7 @@ function resetRun() {
   game.pendingDeathBrand = null;
   game.deathScene = null;
   game.stageTwo = null;
+  game.stageTwoOutro = null;
   game.comboCount = 0;
   game.comboTimer = 0;
   game.comboBest = 0;
@@ -118,6 +122,9 @@ function resetRun() {
   game.deaths = 0;
   game.startedAt = 0;
   game.stageOneRating = 0;
+  game.sceneTransition = null;
+  game.prologueCueState = null;
+  game.finalVictoryVideo = null;
   resetCutsceneVideoUi();
   game.bossCutscene = null;
   game.bossArrivalScene = null;
@@ -1215,6 +1222,115 @@ function getEnemyLeash(enemy) {
   };
 }
 
+function getBossStyleProfile(enemy) {
+  const brand =
+    enemy?.phase === "transform"
+      ? enemy.transformToBrand || enemy.secondFormBrand || enemy.brand
+      : enemy?.brand;
+  if (brand === "monster") {
+    return {
+      name: "monster",
+      patrolSpeedMultiplier: 0.94,
+      closeRange: 210,
+      engagedSummonChance: 0.16,
+      engagedShootChance: 0.46,
+      engagedChargeChance: 0.16,
+      closeChargeChance: 0.2,
+      jumpPressureChance: 0.18,
+      chargeWindupBase: 18,
+      chargeWindupEnraged: 16,
+      chargeWindupBerserk: 14,
+      chargeDurationBase: 50,
+      chargeDurationEnraged: 58,
+      chargeDurationBerserk: 64,
+      chargeSpeedMultiplier: 0.92,
+      shootWindupBase: 24,
+      shootWindupEnraged: 20,
+      shootWindupBerserk: 18,
+      engagedProjectileShotsBase: 3,
+      soloProjectileShotsBase: 2,
+      soloProjectileShotsEnraged: 3,
+      soloProjectileShotsBerserk: 4,
+      engagedProjectileSpreadBase: 0.28,
+      soloProjectileSpreadBase: 0.14,
+      soloProjectileSpreadEnraged: 0.24,
+      soloProjectileSpreadBerserk: 0.32,
+      engagedHomingChance: 0.22,
+      soloHomingChance: 0.42,
+      homingStrength: 0.07,
+      summonCount: 1,
+      jumpKickMultiplier: 1.1,
+      jumpLaunchVY: -12.3,
+      airShootAllowed: "enraged",
+      airShootIntervalEngaged: 34,
+      airShootIntervalSoloEnraged: 20,
+      airShootIntervalSoloBerserk: 14,
+      postChargeSummonChance: 0.08,
+      postChargeJumpChance: 0.14,
+      postChargeShootChance: 0.48,
+      postShootSummonChance: 0.1,
+      postShootChargeChance: 0.12,
+      postShootJumpChance: 0.22,
+      shakenShootIntervalEngaged: 18,
+      shakenShootIntervalSoloEnraged: 18,
+      shakenShootIntervalSoloBerserk: 12,
+      recoveryCooldownBase: 52,
+      recoveryCooldownEnraged: 18,
+      recoveryCooldownBerserk: 10,
+    };
+  }
+  return {
+    name: "redbull",
+    patrolSpeedMultiplier: 1.14,
+    closeRange: 250,
+    engagedSummonChance: 0.02,
+    engagedShootChance: 0.1,
+    engagedChargeChance: 0.62,
+    closeChargeChance: 0.62,
+    jumpPressureChance: 0.26,
+    chargeWindupBase: 16,
+    chargeWindupEnraged: 13,
+    chargeWindupBerserk: 11,
+    chargeDurationBase: 82,
+    chargeDurationEnraged: 74,
+    chargeDurationBerserk: 66,
+    chargeSpeedMultiplier: 1.18,
+    shootWindupBase: 28,
+    shootWindupEnraged: 24,
+    shootWindupBerserk: 20,
+    engagedProjectileShotsBase: 1,
+    soloProjectileShotsBase: 1,
+    soloProjectileShotsEnraged: 2,
+    soloProjectileShotsBerserk: 2,
+    engagedProjectileSpreadBase: 0.08,
+    soloProjectileSpreadBase: 0,
+    soloProjectileSpreadEnraged: 0.08,
+    soloProjectileSpreadBerserk: 0.14,
+    engagedHomingChance: 0.02,
+    soloHomingChance: 0.08,
+    homingStrength: 0.038,
+    summonCount: 1,
+    jumpKickMultiplier: 0.95,
+    jumpLaunchVY: -11.4,
+    airShootAllowed: "berserk",
+    airShootIntervalEngaged: 999,
+    airShootIntervalSoloEnraged: 999,
+    airShootIntervalSoloBerserk: 24,
+    postChargeSummonChance: 0.02,
+    postChargeJumpChance: 0.52,
+    postChargeShootChance: 0.12,
+    postShootSummonChance: 0.02,
+    postShootChargeChance: 0.48,
+    postShootJumpChance: 0.28,
+    shakenShootIntervalEngaged: 48,
+    shakenShootIntervalSoloEnraged: 999,
+    shakenShootIntervalSoloBerserk: 18,
+    recoveryCooldownBase: 88,
+    recoveryCooldownEnraged: 22,
+    recoveryCooldownBerserk: 12,
+  };
+}
+
 function updateBossAi(enemy, player, frameScale) {
   enemy.cooldown = Math.max(0, (enemy.cooldown ?? 0) - frameScale);
   enemy.phaseTimer = Math.max(0, (enemy.phaseTimer ?? 0) - frameScale);
@@ -1227,6 +1343,7 @@ function updateBossAi(enemy, player, frameScale) {
   const dir = Math.sign(dx) || 1;
   const hpRatio = enemy.hp / enemy.maxHp;
   const playerCenterX = player.x + player.w / 2;
+  const style = getBossStyleProfile(enemy);
   let bossJustEngaged = false;
   if (
     !level.bossEngaged &&
@@ -1376,7 +1493,10 @@ function updateBossAi(enemy, player, frameScale) {
   }
 
   if (enemy.phase === "patrol") {
-    const baseSpeed = (1.0 + (1 - hpRatio) * 1.6) * STAGE_ONE_DIFFICULTY.enemySpeedMultiplier;
+    const baseSpeed =
+      (1.0 + (1 - hpRatio) * 1.6) *
+      STAGE_ONE_DIFFICULTY.enemySpeedMultiplier *
+      (style.patrolSpeedMultiplier ?? 1);
     enemy.vx = dir * baseSpeed;
 
     const playerHigh = dy < -60 && Math.abs(dx) < 110 && player.vy < 4;
@@ -1388,23 +1508,34 @@ function updateBossAi(enemy, player, frameScale) {
       enemy.actionCooldown = enemy.berserk ? 96 : enemy.enraged ? 148 : 192;
     } else if (enemy.actionCooldown <= 0) {
       const r = Math.random();
-      const closeRange = Math.abs(dx) < 220;
+      const closeRange = Math.abs(dx) < (style.closeRange ?? 220);
       if (engaged) {
         const capRoom = countBossMinionsAlive() < MAX_BOSS_MINIONS;
-        if (capRoom && r < BOSS_BALANCE.engagedSummonChancePatrol) {
+        const summonCutoff = style.engagedSummonChance ?? BOSS_BALANCE.engagedSummonChancePatrol;
+        const shootCutoff = summonCutoff + (style.engagedShootChance ?? BOSS_BALANCE.engagedShootChancePatrol);
+        const chargeCutoff = shootCutoff + (style.engagedChargeChance ?? BOSS_BALANCE.engagedChargeChancePatrol);
+        if (capRoom && r < summonCutoff) {
           enemy.phase = "summonWindup";
           enemy.phaseTimer = 24;
           enemy.tellTimer = 24;
           enemy.vx = 0;
-        } else if (sees && r < BOSS_BALANCE.engagedShootChancePatrol) {
+        } else if (sees && r < shootCutoff) {
           enemy.phase = "shootWindup";
-          enemy.phaseTimer = 20;
-          enemy.tellTimer = 20;
+          enemy.phaseTimer = enemy.berserk
+            ? style.shootWindupBerserk
+            : enemy.enraged
+              ? style.shootWindupEnraged
+              : style.shootWindupBase;
+          enemy.tellTimer = enemy.phaseTimer;
           enemy.vx = 0;
-        } else if (closeRange && r < BOSS_BALANCE.engagedChargeChancePatrol) {
+        } else if (closeRange && r < chargeCutoff) {
           enemy.phase = "chargeWindup";
-          enemy.phaseTimer = 15;
-          enemy.tellTimer = 15;
+          enemy.phaseTimer = enemy.berserk
+            ? style.chargeWindupBerserk
+            : enemy.enraged
+              ? style.chargeWindupEnraged
+              : style.chargeWindupBase;
+          enemy.tellTimer = enemy.phaseTimer;
           enemy.vx = 0;
         } else {
           enemy.phase = "jumpWindup";
@@ -1413,13 +1544,17 @@ function updateBossAi(enemy, player, frameScale) {
           enemy.vx = 0;
         }
         enemy.actionCooldown = BOSS_BALANCE.engagedActionCooldown;
-      } else if (r < (enemy.berserk ? 0.5 : 0.45) && closeRange) {
+      } else if (r < (style.closeChargeChance ?? (enemy.berserk ? 0.5 : 0.45)) && closeRange) {
         enemy.phase = "chargeWindup";
-        enemy.phaseTimer = enemy.berserk ? 16 : 22;
-        enemy.tellTimer = enemy.berserk ? 16 : 22;
+        enemy.phaseTimer = enemy.berserk
+          ? style.chargeWindupBerserk
+          : enemy.enraged
+            ? style.chargeWindupEnraged
+            : style.chargeWindupBase;
+        enemy.tellTimer = enemy.phaseTimer;
         enemy.vx = 0;
         enemy.actionCooldown = enemy.berserk ? 84 : enemy.enraged ? 132 : 198;
-      } else if (r < (enemy.berserk ? 0.78 : 0.75) && damaged) {
+      } else if (r < (style.closeChargeChance ?? 0.45) + (style.jumpPressureChance ?? 0.3) && damaged) {
         enemy.phase = "jumpWindup";
         enemy.phaseTimer = enemy.berserk ? 20 : 28;
         enemy.tellTimer = enemy.berserk ? 20 : 28;
@@ -1427,14 +1562,22 @@ function updateBossAi(enemy, player, frameScale) {
         enemy.actionCooldown = enemy.berserk ? 84 : enemy.enraged ? 132 : 198;
       } else if (sees) {
         enemy.phase = "shootWindup";
-        enemy.phaseTimer = enemy.berserk ? 22 : 30;
-        enemy.tellTimer = enemy.berserk ? 22 : 30;
+        enemy.phaseTimer = enemy.berserk
+          ? style.shootWindupBerserk
+          : enemy.enraged
+            ? style.shootWindupEnraged
+            : style.shootWindupBase;
+        enemy.tellTimer = enemy.phaseTimer;
         enemy.vx = 0;
         enemy.actionCooldown = enemy.berserk ? 84 : enemy.enraged ? 132 : 198;
       } else {
         enemy.phase = "chargeWindup";
-        enemy.phaseTimer = enemy.berserk ? 16 : 22;
-        enemy.tellTimer = enemy.berserk ? 16 : 22;
+        enemy.phaseTimer = enemy.berserk
+          ? style.chargeWindupBerserk
+          : enemy.enraged
+            ? style.chargeWindupEnraged
+            : style.chargeWindupBase;
+        enemy.tellTimer = enemy.phaseTimer;
         enemy.vx = 0;
         enemy.actionCooldown = enemy.berserk ? 84 : enemy.enraged ? 132 : 198;
       }
@@ -1442,7 +1585,7 @@ function updateBossAi(enemy, player, frameScale) {
   } else if (enemy.phase === "summonWindup") {
     enemy.vx = 0;
     if (enemy.phaseTimer <= 0) {
-      spawnBossMinions(enemy, BOSS_BALANCE.summonCount);
+      spawnBossMinions(enemy, style.summonCount ?? BOSS_BALANCE.summonCount);
       enemy.phase = "stunned";
       enemy.phaseTimer = engaged ? BOSS_BALANCE.summonStunnedFrames : 16;
     }
@@ -1450,7 +1593,11 @@ function updateBossAi(enemy, player, frameScale) {
     enemy.vx = 0;
     if (enemy.phaseTimer <= 0) {
       enemy.phase = "charge";
-      enemy.phaseTimer = enemy.enraged ? 60 : 70;
+      enemy.phaseTimer = enemy.berserk
+        ? style.chargeDurationBerserk
+        : enemy.enraged
+          ? style.chargeDurationEnraged
+          : style.chargeDurationBase;
       soundFx.bossCharge();
       triggerStageOneShake(3.4);
       spawnBossBurst(enemy.x + enemy.w / 2, enemy.y + enemy.h * 0.5, enemy.brand, 16, {
@@ -1471,22 +1618,24 @@ function updateBossAi(enemy, player, frameScale) {
         ? BOSS_BALANCE.chargeSpeedBerserk
         : enemy.enraged
           ? BOSS_BALANCE.chargeSpeedEnraged
-          : BOSS_BALANCE.chargeSpeedBase) * STAGE_ONE_DIFFICULTY.enemySpeedMultiplier;
+          : BOSS_BALANCE.chargeSpeedBase) *
+      STAGE_ONE_DIFFICULTY.enemySpeedMultiplier *
+      (style.chargeSpeedMultiplier ?? 1);
     enemy.vx = (enemy.vx >= 0 ? 1 : -1) * chargeSpeed;
     if (enemy.phaseTimer <= 0) {
       if (engaged) {
         const r = Math.random();
-        if (countBossMinionsAlive() < MAX_BOSS_MINIONS && r < BOSS_BALANCE.engagedChargeFollowupSummonChance) {
+        if (countBossMinionsAlive() < MAX_BOSS_MINIONS && r < (style.postChargeSummonChance ?? BOSS_BALANCE.engagedChargeFollowupSummonChance)) {
           enemy.phase = "summonWindup";
           enemy.phaseTimer = 16;
           enemy.tellTimer = 16;
           enemy.vx = 0;
-        } else if (r < 0.4) {
+        } else if (r < (style.postChargeJumpChance ?? 0.4)) {
           enemy.phase = "jumpWindup";
           enemy.phaseTimer = 13;
           enemy.tellTimer = 13;
           enemy.vx = 0;
-        } else if (r < 0.54 && sees) {
+        } else if (r < (style.postChargeJumpChance ?? 0.4) + (style.postChargeShootChance ?? 0.14) && sees) {
           enemy.phase = "shootWindup";
           enemy.phaseTimer = 18;
           enemy.tellTimer = 18;
@@ -1514,16 +1663,28 @@ function updateBossAi(enemy, player, frameScale) {
     enemy.vx = 0;
     if (enemy.phaseTimer <= 0) {
       if (sees) {
-        const shots = engaged ? BOSS_BALANCE.engagedProjectileShots : enemy.berserk ? 4 : enemy.enraged ? 3 : 1;
-        const spread = engaged ? BOSS_BALANCE.engagedProjectileSpread : enemy.berserk ? 0.28 : enemy.enraged ? 0.22 : 0;
+        const shots = engaged
+          ? (style.engagedProjectileShotsBase ?? BOSS_BALANCE.engagedProjectileShots) + (enemy.berserk ? 1 : 0)
+          : enemy.berserk
+            ? style.soloProjectileShotsBerserk
+            : enemy.enraged
+              ? style.soloProjectileShotsEnraged
+              : style.soloProjectileShotsBase;
+        const spread = engaged
+          ? (style.engagedProjectileSpreadBase ?? BOSS_BALANCE.engagedProjectileSpread) + (enemy.berserk ? 0.04 : 0)
+          : enemy.berserk
+            ? style.soloProjectileSpreadBerserk
+            : enemy.enraged
+              ? style.soloProjectileSpreadEnraged
+              : style.soloProjectileSpreadBase;
         for (let i = 0; i < shots; i += 1) {
           const offset = shots === 1 ? 0 : (i - (shots - 1) / 2) * spread;
           spawnBossProjectile(enemy, dir, { angleOffset: offset });
         }
-        if ((engaged || enemy.berserk) && Math.random() < (engaged ? BOSS_BALANCE.engagedHomingChance : 0.35)) {
+        if ((engaged || enemy.berserk) && Math.random() < (engaged ? style.engagedHomingChance : style.soloHomingChance)) {
           spawnBossProjectile(enemy, dir, {
             homing: true,
-            homingStrength: engaged ? BOSS_BALANCE.engagedHomingStrength : 0.06,
+            homingStrength: engaged ? Math.max(BOSS_BALANCE.engagedHomingStrength, style.homingStrength) : style.homingStrength,
             speedMul: 0.7,
             life: BOSS_PROJECTILE_LIFE_HOMING_FRAMES,
             radius: 9,
@@ -1535,18 +1696,18 @@ function updateBossAi(enemy, player, frameScale) {
         engaged &&
         sees &&
         countBossMinionsAlive() < MAX_BOSS_MINIONS &&
-        Math.random() < BOSS_BALANCE.engagedShootFollowupSummonChance
+        Math.random() < (style.postShootSummonChance ?? BOSS_BALANCE.engagedShootFollowupSummonChance)
       ) {
         enemy.phase = "summonWindup";
         enemy.phaseTimer = 16;
         enemy.tellTimer = 16;
       } else if (engaged && sees) {
         const r = Math.random();
-        if (r < 0.22) {
+        if (r < (style.postShootChargeChance ?? 0.22)) {
           enemy.phase = "chargeWindup";
           enemy.phaseTimer = 14;
           enemy.tellTimer = 14;
-        } else if (r < 0.44) {
+        } else if (r < (style.postShootChargeChance ?? 0.22) + (style.postShootJumpChance ?? 0.22)) {
           enemy.phase = "jumpWindup";
           enemy.phaseTimer = 13;
           enemy.tellTimer = 13;
@@ -1566,16 +1727,24 @@ function updateBossAi(enemy, player, frameScale) {
   } else if (enemy.phase === "jumpWindup") {
     enemy.vx = 0;
     if (enemy.phaseTimer <= 0) {
-      enemy.vy = -11.9;
+      enemy.vy = style.jumpLaunchVY ?? -11.9;
       enemy.onGround = false;
-      const horizontalKick = enemy.berserk ? BOSS_BALANCE.jumpKickBerserk : BOSS_BALANCE.jumpKickBase;
+      const horizontalKick =
+        (enemy.berserk ? BOSS_BALANCE.jumpKickBerserk : BOSS_BALANCE.jumpKickBase) *
+        (style.jumpKickMultiplier ?? 1);
       enemy.vx = Math.sign(dx || 1) * horizontalKick;
       enemy.phase = "airborne";
       enemy.phaseTimer = 220;
       enemy.airShootCooldown = engaged ? BOSS_BALANCE.engagedInitialAirShootCooldown : 18;
     }
   } else if (enemy.phase === "airborne") {
-    if ((enemy.berserk || enemy.enraged) && sees) {
+    const allowAirShoot =
+      style.airShootAllowed === "enraged"
+        ? enemy.berserk || enemy.enraged
+        : style.airShootAllowed === "berserk"
+          ? enemy.berserk
+          : false;
+    if (allowAirShoot && sees) {
       enemy.airShootCooldown = Math.max(0, (enemy.airShootCooldown ?? 0) - frameScale);
       if (enemy.airShootCooldown <= 0 && enemy.vy < 1) {
         spawnBossProjectile(enemy, dir, {
@@ -1583,7 +1752,11 @@ function updateBossAi(enemy, player, frameScale) {
           speedMul: 0.85,
           heightFrac: 0.85,
         });
-        enemy.airShootCooldown = engaged ? BOSS_BALANCE.engagedAirShootInterval : enemy.berserk ? 16 : 26;
+        enemy.airShootCooldown = engaged
+          ? style.airShootIntervalEngaged
+          : enemy.berserk
+            ? style.airShootIntervalSoloBerserk
+            : style.airShootIntervalSoloEnraged;
       }
     }
   } else if (enemy.phase === "shaken") {
@@ -1601,13 +1774,21 @@ function updateBossAi(enemy, player, frameScale) {
     else if (escapeDir > 0 && wallNearRight) escapeDir = -1;
     enemy.shakenDir = escapeDir;
     enemy.vx = escapeDir * shakeSpeed;
-    const shootInterval = engaged ? BOSS_BALANCE.shakenShootInterval : enemy.berserk ? 14 : enemy.enraged ? 20 : 999;
+    const shootInterval = engaged
+      ? style.shakenShootIntervalEngaged
+      : enemy.berserk
+        ? style.shakenShootIntervalSoloBerserk
+        : enemy.enraged
+          ? style.shakenShootIntervalSoloEnraged
+          : 999;
     if (sees && Math.floor(enemy.phaseTimer) % shootInterval === 0 && enemy.phaseTimer > 8) {
       spawnBossProjectile(enemy, dir, { speedMul: 0.85, baseAngleY: -0.18 });
     }
     if (enemy.phaseTimer <= 0) {
       enemy.phase = "patrol";
-      enemy.actionCooldown = engaged ? BOSS_BALANCE.engagedRecoveryActionCooldown : Math.max(0, enemy.berserk ? 12 : enemy.enraged ? 24 : 60);
+      enemy.actionCooldown = engaged
+        ? BOSS_BALANCE.engagedRecoveryActionCooldown
+        : Math.max(0, enemy.berserk ? style.recoveryCooldownBerserk : enemy.enraged ? style.recoveryCooldownEnraged : style.recoveryCooldownBase);
     }
   } else if (enemy.phase === "stunned") {
     enemy.vx *= 0.85;
@@ -2411,6 +2592,55 @@ function finishBossMiniCutscene() {
   game.player.invincible = Math.max(game.player.invincible ?? 0, 24);
 }
 
+function completeBossVictoryCutscene() {
+  finishBossMiniCutscene();
+  game.pendingStageTransition = SLINGSHOT_FIRST_ORDER ? "toEndingAfterBoss" : "stage2";
+  game.pendingStageTransitionTimer = Math.max(game.pendingStageTransitionTimer ?? 0, 36);
+  game.overlayTimer = 108;
+  game.overlayText = SLINGSHOT_FIRST_ORDER ? "兩大霸主倒下，準備拯救200p" : "通路破口開啟，準備進第二階段";
+}
+
+function skipBossCutscene() {
+  const cs = game.bossCutscene;
+  if (!cs?.active) {
+    return false;
+  }
+  if (cs.phase === "victory") {
+    completeBossVictoryCutscene();
+    return true;
+  }
+  if (cs.phase === "phaseShift") {
+    finishBossMiniCutscene();
+    return true;
+  }
+  finishBossIntroCutscene();
+  return true;
+}
+
+function skipCurrentDialogueScene() {
+  stopSubtitleNarration();
+  if (game.state === "prologue") {
+    finishPrologueIntro();
+    return true;
+  }
+  if (game.state === "prologueStageCard") {
+    finishPrologueStageCard();
+    return true;
+  }
+  if (game.bossCutscene?.active) {
+    return skipBossCutscene();
+  }
+  if (game.state === "stage2Outro") {
+    finishStageTwoToBossCutscene();
+    return true;
+  }
+  if (game.state === "ending") {
+    finishEndingRescueScene();
+    return true;
+  }
+  return false;
+}
+
 function startBossPhaseShiftCutscene() {
   if (game.bossCutscene?.active || game.stage !== 1 || game.state !== "running") return;
   game.bossCutscene = {
@@ -2490,11 +2720,7 @@ function updateBossIntroCutscene(frameScale) {
       }
     }
     if (cs.timer >= BOSS_VICTORY_CUTSCENE_FRAMES) {
-      finishBossMiniCutscene();
-      game.pendingStageTransition = SLINGSHOT_FIRST_ORDER ? "toEndingAfterBoss" : "stage2";
-      game.pendingStageTransitionTimer = Math.max(game.pendingStageTransitionTimer ?? 0, 36);
-      game.overlayTimer = 108;
-      game.overlayText = SLINGSHOT_FIRST_ORDER ? "兩大霸主倒下，準備拯救200p" : "通路破口開啟，準備進第二階段";
+      completeBossVictoryCutscene();
     }
     return;
   }
@@ -2832,6 +3058,12 @@ function step(frameScale) {
 
   if (game.state === "prologue") {
     updatePrologueIntro(frameScale);
+    updateHud();
+    return;
+  }
+
+  if (game.state === "prologueStageCard") {
+    updatePrologueStageCard(frameScale);
     updateHud();
     return;
   }
