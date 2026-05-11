@@ -492,7 +492,7 @@ function drawEnemies() {
         ctx.fillStyle = "#fff7e8";
         ctx.font = "bold 11px Avenir Next, sans-serif";
         ctx.textAlign = "center";
-        const bossName = enemy.brand === "monster" ? "深淵魔爪" : "極限狂牛";
+        const bossName = enemy.brand === "monster" ? "深淵魔瓜" : "Bluebull";
         ctx.fillText(`${bossName} HP ${Math.max(0, enemy.hp)}/${enemy.maxHp}`, barX + barW / 2, barY - 4);
 
         const phaseColor = enemy.phase === "stunned" ? "#9bff8a" :
@@ -501,7 +501,7 @@ function drawEnemies() {
           enemy.berserk ? "#ff2244" :
           enemy.enraged ? "#ffb347" : "#cdd5e8";
         const baseLabel = enemy.phase === "idle" ? "待機中" :
-          enemy.phase === "transform" ? "魔爪降臨中" :
+          enemy.phase === "transform" ? "魔瓜降臨中" :
           enemy.phase === "stunned" ? "破綻！踩它" :
           enemy.phase === "shaken" ? "霸主暴走" :
           enemy.phase === "charge" || enemy.phase === "chargeWindup" ? "衝刺中" :
@@ -2319,7 +2319,7 @@ function drawPrologueIntro() {
     t < 0.18
       ? ["提神宇宙的暗黑時代", "曾經的國民霸主，只剩一間苦撐的小廠。"]
       : t < 0.38
-        ? ["雙霸主夾殺開始", "紅牛壓通路、魔爪搶聲量，彼此競爭卻都把康貝特擠到角落。"]
+        ? ["雙霸主夾殺開始", "Bluebull壓通路、魔瓜搶聲量，彼此競爭卻都把康貝特擠到角落。"]
         : t < 0.58
           ? ["終極配方被封存", "通路被壓到失聲，康貝特200p 被封進巨塔金庫。"]
           : t < 0.74
@@ -2557,7 +2557,7 @@ function drawOverlay() {
 
     ctx.fillStyle = "#526182";
     ctx.font = "17px Avenir Next, sans-serif";
-    ctx.fillText("紅牛搶通路，魔爪搶聲量；兩大霸主都想把小廠擠出市場。", panelX + panelW / 2, panelY + 140);
+    ctx.fillText("Bluebull搶通路，魔瓜搶聲量；兩大霸主都想把小廠擠出市場。", panelX + panelW / 2, panelY + 140);
     ctx.fillText("7 種維他命 + 胺基酸 + 牛磺酸，咖啡因 1.5 倍、容量 1.25 倍。", panelX + panelW / 2, panelY + 168);
 
     const buttonW = 356;
@@ -2623,7 +2623,7 @@ function drawOverlay() {
     ctx.font = "18px Avenir Next, sans-serif";
     const startingShots = game.stageTwo ? game.stageTwo.startingShots : 6;
     const targetCount = game.stageTwo ? game.stageTwo.targets.length : 0;
-    ctx.fillText("紅牛壓貨架，魔爪搶聲量；兩邊都把通路變成高牆。", panelX + panelW / 2, panelY + 146);
+    ctx.fillText("Bluebull壓貨架，魔瓜搶聲量；兩邊都把通路變成高牆。", panelX + panelW / 2, panelY + 146);
     ctx.fillText(`用 ${startingShots} 發康貝特200p砲彈，擊破 ${targetCount} 個封鎖點。`, panelX + panelW / 2, panelY + 178);
     ctx.fillText("7種維他命 + 胺基酸 + 牛磺酸，清爽氣泡喝了再上。", panelX + panelW / 2, panelY + 210);
     ctx.font = "bold 16px Avenir Next, sans-serif";
@@ -3032,7 +3032,7 @@ function drawEndingRescueScene() {
   } else if (ending.timer < ENDING_RESCUE_REUNION_START + ENDING_RESCUE_REUNION_FRAMES) {
     drawSpeechBubble(152, 112, 330, 60, "接住這瓶本土靈魂\n生產線要重新轟鳴了");
   } else {
-    drawSpeechBubble(468, 108, 360, 64, "紅牛與魔爪各自倒地\n國民提神飲料逆襲成功");
+    drawSpeechBubble(468, 108, 360, 64, "Bluebull與魔瓜各自倒地\n國民提神飲料逆襲成功");
   }
 
   if (reunionRatio > 0) {

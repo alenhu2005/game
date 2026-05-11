@@ -130,14 +130,14 @@ const BOSS_RISING_STOMP_BAND = 22;
 const BOSS_RISING_STOMP_CENTER_INSET = 6;
 const HIDDEN_BOSS_SKIP_KEY = "Backquote";
 const BOSS_INTRO_LINES_BOSS = [
-  "「能闖上能量巨塔，你這間邊緣小廠還算有骨氣。可惜通路、速度、天空，全都在紅牛帝國的資本版圖裡。康貝特，你的上架權早就被我們買斷了。」",
-  "「別搞錯，紅牛帝國跟魔爪本來就各自為王。只是這個市場太擠了，你們那瓶終極配方『康貝特200p』，只配被封在塔頂金庫，永遠變成舊時代標本！」",
-  "「上班族、學生、基層勞工的疲憊不值錢，值錢的是我們包裝過的菁英速度。想救配方？先從我的極限狂牛衝撞下活下來！」",
+  "「能闖上能量巨塔，你這間邊緣小廠還算有骨氣。可惜通路、速度、天空，全都在Bluebull帝國的資本版圖裡。康貝特，你的上架權早就被我們買斷了。」",
+  "「別搞錯，Bluebull帝國跟魔瓜本來就各自為王。只是這個市場太擠了，你們那瓶終極配方『康貝特200p』，只配被封在塔頂金庫，永遠變成舊時代標本！」",
+  "「上班族、學生、基層勞工的疲憊不值錢，值錢的是我們包裝過的菁英速度。想救配方？先從我的Bluebull衝撞下活下來！」",
 ];
 const BOSS_INTRO_LINES_PLAYER = [
   "「你們買斷貨架，卻買不走民眾真正需要的底氣。康貝特不是豪華招牌，是累到快倒的人還能再站起來的那一口。」",
   "「200p 不該被封印在你們的能量巨塔，它是本土小廠的心臟，也是高 CP 值提神的證明。今天我來奪回上架權，也奪回被壟斷的市場視野！」",
-  "「紅牛要打、魔爪也要搶，那就一個一個來。只要生產線還能轟鳴，只要有人還在撐，我就會把康貝特200p帶回大街小巷——喝、了、再、上！」",
+  "「Bluebull要打、魔瓜也要搶，那就一個一個來。只要生產線還能轟鳴，只要有人還在撐，我就會把康貝特200p帶回大街小巷——喝、了、再、上！」",
 ];
 const BOSS_INTRO_EXCHANGE = [
   { speaker: "boss", line: BOSS_INTRO_LINES_BOSS[0] },
@@ -161,7 +161,7 @@ const BOSS_VICTORY_EXCHANGE = SLINGSHOT_FIRST_ORDER
     ];
 const PROLOGUE_NARRATION_LINES = [
   "提神宇宙的暗黑時代。曾經的國民霸主康貝特，如今只剩一間苦撐的小廠。",
-  "紅牛搶通路，魔爪搶聲量。兩大霸主彼此競爭，卻都在把康貝特擠出市場。",
+  "Bluebull搶通路，魔瓜搶聲量。兩大霸主彼此競爭，卻都在把康貝特擠出市場。",
   "最核心的終極配方，康貝特二百P，被封進了能量巨塔。",
   "逆襲任務啟動。先擊碎通路高牆，再把康貝特二百P 救回來。",
   "左右移動，跳躍，衝刺。準備好了，就把這場逆襲打回來。",
@@ -179,7 +179,7 @@ const STAGE_TWO_OUTRO_NARRATION = {
 const ENDING_RESCUE_NARRATION = {
   open: "能量巨塔金庫開了。康貝特二百P，終於重見天日。",
   reunion: "接住這瓶本土靈魂，生產線準備重新轟鳴。",
-  finale: "紅牛與魔爪各自倒地。康貝特二百P，重新回到大家手上。",
+  finale: "Bluebull與魔瓜各自倒地。康貝特二百P，重新回到大家手上。",
 };
 const DEATH_AD_DURATION = 360;
 const DEATH_AD_SKIP_AT = 90;
@@ -565,8 +565,8 @@ const art = {
   pose: loadImage("assets/marketing/drink-pose.jpg"),
   billboardRef: loadImage("assets/marketing/billboard-reference.jpeg"),
   product: loadImage("assets/marketing/product-can-cutout.png"),
-  enemyRedBull: loadImage("assets/marketing/enemy-redbull-cutout.png"),
-  enemyMonster: loadImage("assets/marketing/enemy-monster-cutout.png"),
+  enemyRedBull: loadImage("assets/marketing/\u7d05\u725b\u53bb\u80cc.png"),
+  enemyMonster: loadImage("assets/marketing/\u9b54\u722a\u53bb\u80cc.png"),
 };
 
 const palette = {

@@ -186,7 +186,7 @@ const SCENES = [
   },
   {
     id: "17-boss-dialogue-redbull",
-    note: "第二關對話：紅牛開場",
+    note: "第二關對話：Bluebull 開場",
     setup: () => {
       enterBossStageFromSlingshot();
       game.state = "running";
@@ -209,7 +209,7 @@ const SCENES = [
   },
   {
     id: "18-boss-battle-redbull",
-    note: "第二關戰鬥：紅牛型態",
+    note: "第二關戰鬥：Bluebull 型態",
     setup: () => {
       enterBossStageFromSlingshot();
       game.state = "running";
@@ -237,7 +237,7 @@ const SCENES = [
   },
   {
     id: "19-boss-phase-shift",
-    note: "第二關對話：魔爪接手",
+    note: "第二關對話：魔瓜接手",
     setup: () => {
       enterBossStageFromSlingshot();
       game.state = "running";
@@ -267,7 +267,7 @@ const SCENES = [
   },
   {
     id: "20-boss-battle-monster",
-    note: "第二關戰鬥：魔爪型態",
+    note: "第二關戰鬥：魔瓜型態",
     setup: () => {
       enterBossStageFromSlingshot();
       game.state = "running";

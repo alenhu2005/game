@@ -158,24 +158,24 @@ function getDeathAdCopy(reason, brand) {
       kicker: "雙霸主碰撞實測",
       headline: "有翅膀沒錯，但你先摔下去了",
       lines: [
-        "極限狂牛掌控天空與速度，但不會幫你奪回貨架。",
+        "Bluebull掌控天空與速度，但不會幫你奪回貨架。",
         "資本很大，撞到你的精神值也是真的歸零。",
         "回到康貝特200p，小廠逆襲還沒結束。",
       ],
-      gameOverText: "被極限狂牛撞到斷電",
+      gameOverText: "被Bluebull撞到斷電",
     };
   }
 
   if (reason === "hit" && brand === "monster") {
     return {
       kicker: "雙霸主碰撞實測",
-      headline: "魔爪很兇，你的進度先被抓走",
+      headline: "魔瓜很兇，你的進度先被抓走",
       lines: [
-        "深淵魔爪的能量網罩住夜晚，也罩住你的路線。",
+        "深淵魔瓜的能量網罩住夜晚，也罩住你的路線。",
         "潮流很兇，但上架權還是要靠你砸回來。",
         "回來補 200p，繼續攻頂能量巨塔。",
       ],
-      gameOverText: "被深淵魔爪抓到當機",
+      gameOverText: "被深淵魔瓜抓到當機",
     };
   }
 
@@ -219,10 +219,10 @@ function getDeathAdCopy(reason, brand) {
 
 function getEnemyStompText(brand) {
   if (brand === "redbull") {
-    return "紅牛先扁掉";
+    return "Bluebull先扁掉";
   }
   if (brand === "monster") {
-    return "魔爪被踩熄火";
+    return "魔瓜被踩熄火";
   }
   return "雙霸主封鎖被踩掉";
 }
@@ -1442,7 +1442,7 @@ function updateBossAi(enemy, player, frameScale) {
       enemy.actionCooldown = 120;
       enemy.tellTimer = 16;
       triggerStageOneShake(5.2);
-      spawnStageOnePopup("深淵魔爪降臨！", enemy.x + enemy.w / 2, enemy.y - 16, "#9bff8a");
+      spawnStageOnePopup("深淵魔瓜降臨！", enemy.x + enemy.w / 2, enemy.y - 16, "#9bff8a");
       spawnBossBurst(enemy.x + enemy.w / 2, enemy.y + enemy.h * 0.42, enemy.brand, 24, {
         angle: -Math.PI / 2,
         spread: Math.PI * 1.6,
@@ -1955,7 +1955,7 @@ function stompBossFromPlayer(enemy, player) {
   triggerStageOneShake(6);
   spawnStageOnePopup(
     firstFormBroken
-      ? "極限狂牛倒下，深淵魔爪降臨！"
+      ? "Bluebull倒下，深淵魔瓜降臨！"
       : bossWillFall
         ? "雙霸主封鎖崩解！"
         : `霸主 -1（剩 ${enemy.hp}）`,
@@ -2017,7 +2017,7 @@ function stompBossFromPlayer(enemy, player) {
       }
     });
     game.overlayTimer = 108;
-    game.overlayText = "深淵魔爪降臨，準備第二回合！";
+    game.overlayText = "深淵魔瓜降臨，準備第二回合！";
     soundFx.bossPhaseShift();
     startBossPhaseShiftCutscene();
   } else if (bossWillFall) {
@@ -2945,12 +2945,12 @@ function drawBossIntroCutscene() {
   let accent = "#526182";
 
   if (cs.phase === "phaseShift") {
-    speaker = "深淵魔爪 (Boss)";
-    line = "「紅牛帝國竟然倒下了？那就讓夜晚與電競能量網把你吞掉。」";
+    speaker = "深淵魔瓜 (Boss)";
+    line = "「Bluebull帝國竟然倒下了？那就讓夜晚與電競能量網把你吞掉。」";
     accent = "#55f06a";
   } else if (cs.phase === "exchangeTalk") {
     const turn = getBossIntroTurn(cs);
-    speaker = turn?.speaker === "player" ? "康貝特年輕廠長 (主角)" : "極限狂牛 (Boss)";
+    speaker = turn?.speaker === "player" ? "康貝特年輕廠長 (主角)" : "Bluebull (Boss)";
     line = turn?.line ?? "";
     accent = turn?.speaker === "player" ? "#1c6fd4" : "#ef2a3e";
   } else if (cs.phase === BOSS_INTRO_VIDEO_PHASE) {
