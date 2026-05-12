@@ -164,20 +164,6 @@ restartButton.addEventListener("click", () => {
   resetRun();
 });
 
-if (skipButton) {
-  skipButton.addEventListener("click", () => {
-    unlockAudio();
-    skipToNextStage();
-  });
-}
-
-if (killBossButton) {
-  killBossButton.addEventListener("click", () => {
-    unlockAudio();
-    killBossInstant();
-  });
-}
-
 function shouldIgnoreProloguePointer(event) {
   const target = event.target;
   if (target?.closest?.("button") || target?.closest?.(".video-overlay")) {

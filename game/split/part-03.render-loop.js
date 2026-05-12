@@ -2752,15 +2752,17 @@ function drawOverlay() {
     ctx.font = "bold 26px Avenir Next, sans-serif";
     ctx.fillText("休息一下，馬上回來", WIDTH / 2, footerY + 39);
 
-    // CTA + rotating slogan just below the main footer.
+    // CTA + rotating slogan just below the main footer (keep a real line gap—baselines were 8px apart).
+    const adSloganY = footerY + 86;
+    const adHintY = Math.min(HEIGHT - 22, adSloganY + 30);
     ctx.fillStyle = "#6d7694";
     ctx.font = "16px Avenir Next, sans-serif";
-    ctx.fillText(adTagline, WIDTH / 2, footerY + 86);
+    ctx.fillText(adTagline, WIDTH / 2, adSloganY);
     ctx.font = "15px Avenir Next, sans-serif";
     ctx.fillText(
       skippable ? `按 Space / Enter / 點一下返回（${remaining} 秒後也會自動回到遊戲）` : `再等 ${remaining} 秒就回到遊戲`,
       WIDTH / 2,
-      HEIGHT - 52
+      adHintY
     );
     return;
   }
@@ -3564,7 +3566,6 @@ function _legacyDrawResultPanel_unused() {
 
 function render() {
   if (game.state === "prologue") {
-    syncDebugHudButtonsVisibility();
     drawPrologueIntro();
     // Ensure touch chrome never lingers on top of cutscenes.
     syncMobileControlsVisibility();
@@ -3572,21 +3573,18 @@ function render() {
   }
 
   if (game.state === "prologueStageCard") {
-    syncDebugHudButtonsVisibility();
     drawPrologueStageCard();
     syncMobileControlsVisibility();
     return;
   }
 
   if (game.state === "missionCompleteCard") {
-    syncDebugHudButtonsVisibility();
     drawMissionCompleteCard();
     syncMobileControlsVisibility();
     return;
   }
 
   if (game.state === "ending") {
-    syncDebugHudButtonsVisibility();
     drawEndingRescueScene();
     drawSceneTransition();
     drawAudioToggle();
@@ -3596,7 +3594,6 @@ function render() {
   // Tower storyboard transitions should not show live gameplay behind them.
   // Otherwise the Stage2 scene + transition overlay looks like a double-refresh / layered backgrounds.
   if (game.sceneTransition?.variant === "tower" && (game.sceneTransition.alpha ?? 0) > 0.02) {
-    syncDebugHudButtonsVisibility();
     // Neutral backdrop so the transition reads cleanly.
     drawIntroBackdrop();
     drawSceneTransition();
@@ -3605,7 +3602,6 @@ function render() {
 
   // Intro screen should be a clean UI backdrop (no live gameplay scene behind it).
   if (game.state === "intro") {
-    syncDebugHudButtonsVisibility();
     drawIntroBackdrop();
     syncMobileControlsVisibility();
     drawOverlay();
@@ -3614,7 +3610,6 @@ function render() {
   }
 
   if (game.stage === 2) {
-    syncDebugHudButtonsVisibility();
     drawStageTwoScene();
 
     if (game.state === "stage2Outro") {
@@ -3634,7 +3629,6 @@ function render() {
     return;
   }
 
-  syncDebugHudButtonsVisibility();
   drawBackground();
 
   ctx.save();
@@ -3717,22 +3711,6 @@ function drawIntroBackdrop() {
   ctx.beginPath();
   ctx.arc(764, 110, 58, 0, Math.PI * 2);
   ctx.fill();
-}
-
-function syncDebugHudButtonsVisibility() {
-  const shouldHide =
-    game.state === "intro" ||
-    game.state === "prologue" ||
-    game.state === "prologueStageCard" ||
-    game.state === "missionCompleteCard" ||
-    game.state === "won" ||
-    game.state === "gameover";
-  if (skipButton) {
-    skipButton.style.display = shouldHide ? "none" : "";
-  }
-  if (killBossButton) {
-    killBossButton.style.display = shouldHide ? "none" : "";
-  }
 }
 
 let lastTime = 0;
